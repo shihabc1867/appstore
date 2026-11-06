@@ -92,6 +92,13 @@ export async function showForm(id) {
     <label class="lbl" for="f_desc">Full description</label>
     <textarea id="f_desc" class="inp" rows="8">${
       esc(a.description)}</textarea>
+    <label class="lbl" for="f_whats">
+      What's new in this version</label>
+    <textarea id="f_whats" class="inp" rows="4">${
+      esc(a.whatsNew)}</textarea>
+    <p class="mut hint">
+      Change "Version" when you release an update.
+      Users then see an update notice.</p>
     <label class="chk">
       <input type="checkbox" id="f_pub"
        ${a.published !== false ? "checked" : ""}>
@@ -140,6 +147,7 @@ async function save(id) {
     downloadUrl: val("f_dl"),
     screenshots: shots,
     description: $("f_desc").value.trim(),
+    whatsNew: $("f_whats").value.trim(),
     published: $("f_pub").checked,
     updated: today()
   };
