@@ -3,7 +3,7 @@ import {
   addDoc, setDoc, deleteDoc
 } from "./firebase.js";
 import {
-  $, esc, safeUrl, setTop, today, toast
+  $, esc, safeUrl, imgUrl, setTop, today, toast
 } from "./util.js";
 
 /* Types of items the admin can keep. */
@@ -205,8 +205,9 @@ export async function renderAppVault(appId, box) {
 /* ---------- Single item ---------- */
 function preview(a) {
   const u = safeUrl(a.url);
-  if (a.kind === "image" && u) {
-    return `<img class="pv" src="${esc(u)}" alt="">`;
+  const im = imgUrl(a.url);
+  if (a.kind === "image" && im) {
+    return `<img class="pv" src="${esc(im)}" alt="">`;
   }
   if (a.kind === "audio" && u) {
     return `<audio class="pv" controls
