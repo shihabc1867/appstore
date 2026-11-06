@@ -50,7 +50,10 @@ $("btnBack").onclick = () => {
 };
 $("btnAdmin").onclick = () => { location.hash = "#/admin"; };
 $("avatar").onclick = async () => {
-  if (confirm("Sign out?")) await logout();
+  const who = state.user ? state.user.email : "";
+  if (confirm("Signed in as " + who + ". Sign out?")) {
+    await logout();
+  }
 };
 
 /* ---------- Login ---------- */
@@ -69,6 +72,9 @@ watchAuth(async (u) => {
   $("btnAdmin").classList.toggle("hide", !state.admin);
   clearCache();
   show("shell");
+  if (state.adminErr) {
+    toast("Admin check: " + state.adminErr);
+  }
   await route();
 });
 
