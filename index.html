@@ -15,6 +15,7 @@
 
 <div id="loading" class="center">
   <p class="mut">Loading...</p>
+  <p id="diag" class="err"></p>
 </div>
 
 <div id="login" class="center hide">
@@ -48,6 +49,30 @@
 </button>
 <div id="toast" class="hide"></div>
 
+<script>
+/* Shows start-up problems on screen. */
+(function () {
+  var d = document.getElementById("diag");
+  function say(t) {
+    if (d) d.textContent += t + " | ";
+  }
+  window.addEventListener("error", function (e) {
+    var t = e.target || {};
+    say("ERR " + (t.src || e.message || "?"));
+  }, true);
+  window.addEventListener("unhandledrejection",
+    function (e) {
+      var r = e.reason || {};
+      say("REJ " + (r.code || r.message || r));
+    });
+  setTimeout(function () {
+    var l = document.getElementById("loading");
+    if (l && !l.classList.contains("hide")) {
+      say("Still loading after 10s");
+    }
+  }, 10000);
+})();
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
