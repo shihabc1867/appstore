@@ -139,3 +139,6 @@ select.inp{appearance:auto}
   margin:14px 0; border-radius:12px;
   background:#000; object-fit:contain;
 }
+
+.tag.new{background:#052e16;color:#4ade80}
+.dl{font-size:12px}
