@@ -3,6 +3,7 @@ import {
 } from "./firebase.js";
 import { state } from "./auth.js";
 import { $, esc, safeUrl, setTop } from "./util.js";
+import { renderAppVault } from "./vault.js";
 
 let cache = null;
 
@@ -131,4 +132,9 @@ export async function showDetails(id) {
     ${shots ? `<div class="shots">${shots}</div>` : ""}
     <h3>About this app</h3>
     <p class="desc">${esc(a.description || "")}</p>`;
+  if (state.admin) {
+    const box = document.createElement("div");
+    v.appendChild(box);
+    renderAppVault(a.id, box);
+  }
 }
