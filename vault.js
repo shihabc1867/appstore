@@ -20,7 +20,9 @@ const label = (k) =>
   (KINDS.find((x) => x[0] === k) || [0, "Item"])[1];
 
 let items = null;
+let appNames = null;
 let filter = "all";
+let appFilter = "all";
 let search = "";
 
 export function clearVault() { items = null; }
@@ -35,6 +37,17 @@ async function loadItems() {
   return items;
 }
 
+/* Map of appId -> app name (admin can read all apps). */
+async function loadNames() {
+  if (appNames) return appNames;
+  const snap = await getDocs(collection(db, "apps"));
+  appNames = {};
+  snap.docs.forEach((d) => {
+    appNames[d.id] = d.data().name || "(no name)";
+  });
+  return appNames;
+}
+
 async function getItem(id) {
   const hit = (await loadItems()).find((x) => x.id === id);
   if (hit) return hit;
@@ -42,28 +55,43 @@ async function getItem(id) {
   return s.exists() ? { id: s.id, ...s.data() } : null;
 }
 
-/* ---------- List ---------- */
-function rowsHtml(list) {
-  const f = search.toLowerCase();
-  const out = list.filter((a) =>
-    (filter === "all" || a.kind === filter) &&
-    [a.title, a.note, a.url].join(" ")
-      .toLowerCase().includes(f)
-  );
-  if (!out.length) {
-    return '<p class="mut">Nothing here yet.</p>';
-  }
-  return out.map((a) => `
+function appLabel(a, names) {
+  if (!a.appId) return "General";
+  return names[a.appId] || "Unknown app";
+}
+
+/* ---------- Rows ---------- */
+function oneRow(a, names, showApp) {
+  return `
     <div class="row" data-id="${esc(a.id)}">
       <div class="info">
         <b>${esc(a.title)}</b>
         <span class="mut">${esc(
           a.kind === "note" ? a.note : a.url)}</span>
         <span class="tag">${esc(label(a.kind))}</span>
+        ${showApp
+          ? `<span class="tag">${esc(
+              appLabel(a, names))}</span>` : ""}
       </div>
       <button class="btn ghost small"
        data-id="${esc(a.id)}">Open</button>
-    </div>`).join("");
+    </div>`;
+}
+
+function rowsHtml(list, names) {
+  const f = search.toLowerCase();
+  const out = list.filter((a) =>
+    (filter === "all" || a.kind === filter) &&
+    (appFilter === "all" ||
+      (appFilter === "general"
+        ? !a.appId : a.appId === appFilter)) &&
+    [a.title, a.note, a.url].join(" ")
+      .toLowerCase().includes(f)
+  );
+  if (!out.length) {
+    return '<p class="mut">Nothing here yet.</p>';
+  }
+  return out.map((a) => oneRow(a, names, true)).join("");
 }
 
 function chipsHtml() {
@@ -73,13 +101,30 @@ function chipsHtml() {
      data-k="${k[0]}">${k[1]}</button>`).join("");
 }
 
+function appSelectHtml(names, id, selected, withAll) {
+  const base = withAll
+    ? '<option value="all">All apps</option>' : "";
+  const opts = Object.keys(names).map((k) => `
+    <option value="${esc(k)}"
+     ${selected === k ? "selected" : ""}>${
+      esc(names[k])}</option>`).join("");
+  return `<select id="${id}" class="inp">
+    ${base}
+    <option value="${withAll ? "general" : ""}"
+     ${selected === "" || selected === "general"
+       ? "selected" : ""}>General (no app)</option>
+    ${opts}</select>`;
+}
+
+/* ---------- Whole vault ---------- */
 export async function showVault() {
   setTop("Private vault", "#/admin");
   const v = $("view");
   v.innerHTML = '<p class="mut">Loading...</p>';
-  let list;
+  let list, names;
   try {
     list = await loadItems();
+    names = await loadNames();
   } catch (e) {
     v.innerHTML = '<p class="err">Could not load: ' +
       esc(e.code || e.message) + "</p>";
@@ -92,24 +137,67 @@ export async function showVault() {
      style="margin-bottom:14px">+ Add item</button>
     <input id="vq" class="search" value="${esc(search)}"
      placeholder="Search vault...">
+    <div style="margin-bottom:12px">
+      ${appSelectHtml(names, "vapp", appFilter, true)}
+    </div>
     <div id="chips" class="chips">${chipsHtml()}</div>
-    <div id="vlist">${rowsHtml(list)}</div>`;
+    <div id="vlist">${rowsHtml(list, names)}</div>`;
+  const redraw = () => {
+    $("vlist").innerHTML = rowsHtml(list, names);
+  };
   $("vNew").onclick = () => {
     location.hash = "#/vault/new";
   };
   $("vq").oninput = (e) => {
     search = e.target.value;
-    $("vlist").innerHTML = rowsHtml(list);
+    redraw();
+  };
+  $("vapp").onchange = (e) => {
+    appFilter = e.target.value;
+    redraw();
   };
   $("chips").onclick = (e) => {
     const b = e.target.closest("[data-k]");
     if (!b) return;
     filter = b.dataset.k;
     $("chips").innerHTML = chipsHtml();
-    $("vlist").innerHTML = rowsHtml(list);
+    redraw();
   };
   $("vlist").onclick = (e) => {
     const el = e.target.closest("[data-id]");
+    if (el) location.hash = "#/vault/view/" + el.dataset.id;
+  };
+}
+
+/* ---------- Vault of one app (shown on its Details) ---------- */
+export async function renderAppVault(appId, box) {
+  box.innerHTML = `
+    <h3 style="margin-top:24px">
+      Private files (only you)</h3>
+    <p class="mut">Loading...</p>`;
+  let list;
+  try {
+    list = (await loadItems())
+      .filter((a) => a.appId === appId);
+  } catch (e) {
+    box.innerHTML = '<p class="err">Vault: ' +
+      esc(e.code || e.message) + "</p>";
+    return;
+  }
+  box.innerHTML = `
+    <h3 style="margin:24px 0 10px">
+      Private files (only you)</h3>
+    <button id="avNew" class="btn ghost block"
+     style="margin-bottom:12px">
+      + Add private item</button>
+    ${list.length
+      ? list.map((a) => oneRow(a, {}, false)).join("")
+      : '<p class="mut">Nothing added yet.</p>'}`;
+  $("avNew").onclick = () => {
+    location.hash = "#/vault/new/" + appId;
+  };
+  box.onclick = (e) => {
+    const el = e.target.closest(".row[data-id]");
     if (el) location.hash = "#/vault/view/" + el.dataset.id;
   };
 }
@@ -131,20 +219,28 @@ function preview(a) {
   return "";
 }
 
+const backOf = (a) =>
+  a.appId ? "#/app/" + a.appId : "#/vault";
+
 export async function showVaultItem(id) {
   setTop("Item", "#/vault");
   const v = $("view");
   v.innerHTML = '<p class="mut">Loading...</p>';
-  let a;
-  try { a = await getItem(id); } catch (e) { a = null; }
+  let a, names;
+  try {
+    a = await getItem(id);
+    names = await loadNames();
+  } catch (e) { a = null; }
   if (!a) {
     v.innerHTML = '<p class="err">Item not found.</p>';
     return;
   }
+  setTop("Item", backOf(a));
   const u = safeUrl(a.url);
   v.innerHTML = `
     <h2>${esc(a.title)}</h2>
     <span class="tag">${esc(label(a.kind))}</span>
+    <span class="tag">${esc(appLabel(a, names))}</span>
     <span class="mut">${esc(a.updated || "")}</span>
     ${preview(a)}
     ${a.note
@@ -162,24 +258,29 @@ export async function showVaultItem(id) {
 }
 
 /* ---------- Add / Edit ---------- */
-export async function showVaultForm(id) {
-  setTop(id ? "Edit item" : "Add item",
-    id ? "#/vault/view/" + id : "#/vault");
+export async function showVaultForm(id, presetApp) {
+  setTop(id ? "Edit item" : "Add item", "#/vault");
   const v = $("view");
-  let a = { kind: "link" };
-  if (id) {
-    v.innerHTML = '<p class="mut">Loading...</p>';
-    try { a = await getItem(id); } catch (e) { a = null; }
-    if (!a) {
-      v.innerHTML = '<p class="err">Item not found.</p>';
-      return;
-    }
+  let a = { kind: "link", appId: presetApp || "" };
+  let names;
+  v.innerHTML = '<p class="mut">Loading...</p>';
+  try {
+    names = await loadNames();
+    if (id) a = await getItem(id);
+  } catch (e) { a = null; }
+  if (!a) {
+    v.innerHTML = '<p class="err">Item not found.</p>';
+    return;
   }
+  setTop(id ? "Edit item" : "Add item",
+    id ? "#/vault/view/" + id : backOf(a));
   const opts = KINDS.map((k) => `
     <option value="${k[0]}"
      ${a.kind === k[0] ? "selected" : ""}>${k[1]}</option>`
   ).join("");
   v.innerHTML = `
+    <label class="lbl" for="v_app">For which app</label>
+    ${appSelectHtml(names, "v_app", a.appId || "", false)}
     <label class="lbl" for="v_kind">Type</label>
     <select id="v_kind" class="inp">${opts}</select>
     <label class="lbl" for="v_title">Title *</label>
@@ -198,7 +299,7 @@ export async function showVaultForm(id) {
     ${id ? `<button id="v_del" class="btn block danger"
       style="margin-top:12px">Delete item</button>` : ""}`;
   $("v_save").onclick = () => save(id);
-  if (id) $("v_del").onclick = () => remove(id);
+  if (id) $("v_del").onclick = () => remove(id, a);
 }
 
 const val = (i) => $(i).value.trim();
@@ -222,6 +323,7 @@ async function save(id) {
     return;
   }
   const data = {
+    appId: $("v_app").value,
     kind: kind,
     title: val("v_title"),
     url: val("v_url"),
@@ -239,20 +341,20 @@ async function save(id) {
     }
     clearVault();
     toast("Saved");
-    location.hash = "#/vault";
+    location.hash = backOf(data);
   } catch (e) {
     err.textContent = "Save failed: " + (e.code || e.message);
     $("v_save").disabled = false;
   }
 }
 
-async function remove(id) {
+async function remove(id, a) {
   if (!confirm("Delete this item for good?")) return;
   try {
     await deleteDoc(doc(db, "private", id));
     clearVault();
     toast("Deleted");
-    location.hash = "#/vault";
+    location.hash = backOf(a);
   } catch (e) {
     $("v_err").textContent =
       "Delete failed: " + (e.code || e.message);
