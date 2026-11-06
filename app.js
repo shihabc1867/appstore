@@ -23,6 +23,8 @@ const routes = [
   [/^#\/vault$/, () => adminOnly(showVault)],
   [/^#\/vault\/new$/,
     () => adminOnly(() => showVaultForm())],
+  [/^#\/vault\/new\/(.+)$/,
+    (m) => adminOnly(() => showVaultForm(null, m[1]))],
   [/^#\/vault\/view\/(.+)$/,
     (m) => adminOnly(() => showVaultItem(m[1]))],
   [/^#\/vault\/edit\/(.+)$/,
