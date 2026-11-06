@@ -3,7 +3,9 @@ import {
   query, where, updateDoc, increment
 } from "./firebase.js";
 import { state } from "./auth.js";
-import { $, esc, safeUrl, setTop } from "./util.js";
+import {
+  $, esc, imgUrl, dlUrl, iconSrc, setTop
+} from "./util.js";
 import { renderAppVault } from "./vault.js";
 import { renderReviews } from "./reviews.js";
 import {
@@ -14,22 +16,57 @@ let cache = null;
 let cat = "all";
 let search = "";
 let flags = {};
+let offline = false;
 const DAY = 86400000;
 
 export function clearCache() { cache = null; }
 
-/* Admin sees every app. Users see published ones only. */
+function cacheKey() {
+  return "apps_" + (state.admin ? "a" : "u");
+}
+
+function readSaved() {
+  try {
+    const t = localStorage.getItem(cacheKey());
+    return t ? JSON.parse(t) : null;
+  } catch (e) { return null; }
+}
+
+function writeSaved(list) {
+  try {
+    localStorage.setItem(cacheKey(), JSON.stringify(list));
+  } catch (e) { /* too big or blocked: ignore */ }
+}
+
+/* Admin sees every app. Users see published ones only.
+   Offline: shows the last saved list. */
 export async function loadApps() {
   if (cache) return cache;
+  const saved = readSaved();
+  if (!navigator.onLine && saved) {
+    offline = true;
+    cache = saved;
+    return cache;
+  }
   const col = collection(db, "apps");
   const q = state.admin
     ? col
     : query(col, where("published", "==", true));
-  const snap = await getDocs(q);
+  let snap;
+  try {
+    snap = await getDocs(q);
+  } catch (e) {
+    if (!saved) throw e;
+    offline = true;
+    cache = saved;
+    return cache;
+  }
+  offline = false;
   cache = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) =>
       (b.createdAt || 0) - (a.createdAt || 0));
+  writeSaved(cache);
   return cache;
 }
 
@@ -93,7 +130,7 @@ function rows(items) {
   return items.map((a) => `
     <div class="row" data-id="${esc(a.id)}">
       <img class="ico" alt="" loading="lazy"
-       src="${esc(safeUrl(a.iconUrl))}">
+       src="${esc(iconSrc(a))}">
       <div class="info">
         <b>${esc(a.name)}</b>
         <span class="mut">${esc(a.tagline)}</span>
@@ -143,8 +180,12 @@ export async function showList() {
   try {
     list = await loadApps();
   } catch (e) {
-    v.innerHTML = '<p class="err">Could not load: ' +
-      esc(e.code || e.message) + "</p>";
+    v.innerHTML = `
+      <p class="err">Could not load apps.
+        ${esc(e.code || e.message)}</p>
+      <button id="retry" class="btn block"
+       style="margin-top:12px">Try again</button>`;
+    $("retry").onclick = () => showList();
     return;
   }
   baseline(list);
@@ -154,6 +195,9 @@ export async function showList() {
   const cats = categories(list);
   if (cat !== "all" && !cats.includes(cat)) cat = "all";
   v.innerHTML = `
+    ${offline
+      ? `<div class="note off">You are offline.
+          Showing the last saved list.</div>` : ""}
     ${banner(pend)}
     <input id="q" class="search" value="${esc(search)}"
      placeholder="Search apps...">
@@ -207,14 +251,14 @@ export async function showDetails(id) {
     return;
   }
   const shots = (a.screenshots || [])
-    .map(safeUrl).filter(Boolean)
+    .map(imgUrl).filter(Boolean)
     .map((u) => `<img src="${esc(u)}" alt=""
       loading="lazy">`).join("");
-  const dl = safeUrl(a.downloadUrl);
+  const dl = dlUrl(a.downloadUrl);
   v.innerHTML = `
     <div class="top">
       <img class="ico big" alt=""
-       src="${esc(safeUrl(a.iconUrl))}">
+       src="${esc(iconSrc(a))}">
       <div class="info">
         <h2>${esc(a.name)}</h2>
         <span class="mut">${esc(a.tagline)}</span>
@@ -226,6 +270,20 @@ export async function showDetails(id) {
           rel="noopener"><button class="btn block"
           style="margin-top:16px">Download</button></a>`
       : '<p class="mut">No download yet.</p>'}
+    ${dl ? `
+    <details class="help">
+      <summary>Cannot install? Read this</summary>
+      <ol>
+        <li>Tap Download and wait until it finishes.</li>
+        <li>Open the downloaded file from your
+          notification or Files app.</li>
+        <li>If Android says install is blocked, tap
+          Settings and allow "Install unknown apps"
+          for your browser, then go back and install.</li>
+        <li>If Play Protect warns you, tap
+          More details, then Install anyway.</li>
+      </ol>
+    </details>` : ""}
     <div class="facts">
       <div class="fact"><span>Version</span>
         ${esc(a.version || "-")}</div>
