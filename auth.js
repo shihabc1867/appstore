@@ -5,7 +5,9 @@ import {
 } from "./firebase.js";
 
 /* Current user and admin flag, read by other files. */
-export const state = { user: null, admin: false };
+export const state = {
+  user: null, admin: false, adminErr: ""
+};
 
 export async function login() {
   const p = new GoogleAuthProvider();
@@ -30,10 +32,12 @@ export function logout() {
 
 /* Admin = a document in "admins" named by the email. */
 async function checkAdmin(user) {
+  state.adminErr = "";
   try {
     const s = await getDoc(doc(db, "admins", user.email));
     return s.exists();
   } catch (e) {
+    state.adminErr = e.code || e.message;
     return false;
   }
 }
