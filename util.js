@@ -101,4 +101,3 @@ export function toast(msg) {
   clearTimeout(timer);
   timer = setTimeout(() => t.classList.add("hide"), 2500);
 }
-ভ
