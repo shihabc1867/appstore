@@ -178,3 +178,12 @@ select.inp{appearance:auto}
   width:34px;height:34px;border-radius:50%;
   background:#334155; flex:none;
 }
+
+.note.off{border-color:#a16207}
+details.help{
+  background:var(--card); border-radius:12px;
+  padding:10px 14px; margin-top:12px;
+  font-size:14px;
+}
+details.help summary{cursor:pointer;color:var(--acc)}
+details.help ol{margin:10px 0 0 18px;line-height:1.6}
