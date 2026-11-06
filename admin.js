@@ -3,7 +3,7 @@ import {
 } from "./firebase.js";
 import { loadApps, getApp, clearCache } from "./store.js";
 import {
-  $, esc, safeUrl, setTop, today, toast
+  $, esc, safeUrl, imgUrl, iconSrc, setTop, today, toast
 } from "./util.js";
 
 /* ---------- Admin home: list of all apps ---------- */
@@ -22,7 +22,7 @@ export async function showAdmin() {
   const rows = list.map((a) => `
     <div class="row">
       <img class="ico" alt="" loading="lazy"
-       src="${esc(safeUrl(a.iconUrl))}">
+       src="${esc(iconSrc(a))}">
       <div class="info">
         <b>${esc(a.name)}</b>
         <span class="mut">v${esc(a.version || "-")}</span>
@@ -75,16 +75,32 @@ export async function showForm(id) {
       return;
     }
   }
+  iconData = a.iconData || "";
   v.innerHTML = `
     ${field("Name *", "f_name", a.name)}
     ${field("Short line", "f_tagline", a.tagline)}
     ${field("Category", "f_category", a.category)}
     ${field("Version", "f_version", a.version)}
     ${field("Size (e.g. 12 MB)", "f_size", a.size)}
-    ${field("Icon image link", "f_icon", a.iconUrl,
-      "A direct https link to a PNG or JPG.")}
+    <label class="lbl">Logo</label>
+    <div class="top">
+      <img id="f_prev" class="ico big" alt="">
+      <div>
+        <button id="f_pick" type="button"
+         class="btn ghost small">Choose from phone</button>
+        <button id="f_clear" type="button"
+         class="btn ghost small"
+         style="margin-left:8px">Remove</button>
+      </div>
+    </div>
+    <input id="f_file" type="file" accept="image/*"
+     class="hide">
+    ${field("Or logo image link", "f_icon", a.iconUrl,
+      "Direct image link. GitHub or Google Drive " +
+      "(shared with anyone) links also work.")}
     ${field("Download link", "f_dl", a.downloadUrl,
-      "Best: GitHub Releases APK link.")}
+      "GitHub Releases APK link, or Google Drive " +
+      "(shared with anyone with the link).")}
     <label class="lbl" for="f_shots">
       Screenshot links (one per line)</label>
     <textarea id="f_shots" class="inp" rows="4">${
@@ -109,11 +125,66 @@ export async function showForm(id) {
     ${id ? `<button id="f_del" class="btn block danger"
       style="margin-top:12px">Delete app</button>` : ""}`;
 
+  const prev = () => {
+    const src = iconData || imgUrl($("f_icon").value);
+    if (src) $("f_prev").setAttribute("src", src);
+    else $("f_prev").removeAttribute("src");
+  };
+  prev();
+  $("f_icon").oninput = prev;
+  $("f_pick").onclick = () => $("f_file").click();
+  $("f_clear").onclick = () => {
+    iconData = "";
+    $("f_icon").value = "";
+    prev();
+  };
+  $("f_file").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const d = await toIcon(file);
+      if (d.length > 150000) {
+        throw new Error("Image is too big");
+      }
+      iconData = d;
+      prev();
+    } catch (err) {
+      $("f_err").textContent =
+        "Could not use this image: " + err.message;
+    }
+  };
   $("f_save").onclick = () => save(id);
   if (id) $("f_del").onclick = () => remove(id);
 }
 
 function val(id) { return $(id).value.trim(); }
+
+/* Picked logo, shrunk to a small square picture. */
+let iconData = "";
+
+async function toIcon(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => no(new Error("not an image"));
+      i.src = url;
+    });
+    const S = 256;
+    const c = document.createElement("canvas");
+    c.width = S;
+    c.height = S;
+    const k = S / Math.max(img.width, img.height);
+    const w = img.width * k;
+    const h = img.height * k;
+    c.getContext("2d")
+      .drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+    return c.toDataURL("image/webp", 0.9);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 async function save(id) {
   const err = $("f_err");
@@ -144,6 +215,7 @@ async function save(id) {
     version: val("f_version"),
     size: val("f_size"),
     iconUrl: val("f_icon"),
+    iconData: iconData,
     downloadUrl: val("f_dl"),
     screenshots: shots,
     description: $("f_desc").value.trim(),
