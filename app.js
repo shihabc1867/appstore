@@ -2,6 +2,9 @@ import { state, watchAuth, login, logout } from "./auth.js";
 import { $, show, toast } from "./util.js";
 import { showList, showDetails, clearCache } from "./store.js";
 import { showAdmin, showForm } from "./admin.js";
+import {
+  showVault, showVaultForm, showVaultItem
+} from "./vault.js";
 
 /* ============================================
    ROUTE TABLE
@@ -16,7 +19,14 @@ const routes = [
   [/^#\/admin$/, () => adminOnly(showAdmin)],
   [/^#\/admin\/new$/, () => adminOnly(() => showForm())],
   [/^#\/admin\/edit\/(.+)$/,
-    (m) => adminOnly(() => showForm(m[1]))]
+    (m) => adminOnly(() => showForm(m[1]))],
+  [/^#\/vault$/, () => adminOnly(showVault)],
+  [/^#\/vault\/new$/,
+    () => adminOnly(() => showVaultForm())],
+  [/^#\/vault\/view\/(.+)$/,
+    (m) => adminOnly(() => showVaultItem(m[1]))],
+  [/^#\/vault\/edit\/(.+)$/,
+    (m) => adminOnly(() => showVaultForm(m[1]))]
 ];
 
 function adminOnly(fn) {
