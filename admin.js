@@ -37,9 +37,14 @@ export async function showAdmin() {
   v.innerHTML = `
     <button id="btnNew" class="btn block"
      style="margin-bottom:14px">+ Add new app</button>
+    <button id="btnVault" class="btn ghost block"
+     style="margin-bottom:14px">Private vault</button>
     ${rows || '<p class="mut">No apps yet.</p>'}`;
   $("btnNew").onclick = () => {
     location.hash = "#/admin/new";
+  };
+  $("btnVault").onclick = () => {
+    location.hash = "#/vault";
   };
   v.onclick = (e) => {
     const b = e.target.closest("[data-edit]");
