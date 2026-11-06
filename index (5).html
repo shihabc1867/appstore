@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport"
+ content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>My App Store</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loading" class="center">
+  <p class="mut">Loading...</p>
+</div>
+
+<div id="login" class="center hide">
+  <img class="logo" src="icon-192.png" alt="">
+  <h2>My App Store</h2>
+  <p class="mut">
+    Sign in with Google to see and
+    download all apps.
+  </p>
+  <button id="btnLogin" class="btn">
+    Sign in with Google
+  </button>
+  <p id="loginErr" class="err"></p>
+</div>
+
+<div id="shell" class="hide">
+  <header>
+    <button id="btnBack" class="back hide">←</button>
+    <h1 id="title">My App Store</h1>
+    <button id="btnAdmin" class="btn ghost small hide">
+      Admin
+    </button>
+    <img id="avatar" class="avatar" alt=""
+     title="Tap to sign out">
+  </header>
+  <main id="view"></main>
+</div>
+
+<button id="install" class="btn block hide">
+  Install this app on your phone
+</button>
+<div id="toast" class="hide"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
