@@ -5,6 +5,7 @@ import {
 import { state } from "./auth.js";
 import { $, esc, safeUrl, setTop } from "./util.js";
 import { renderAppVault } from "./vault.js";
+import { renderReviews } from "./reviews.js";
 import {
   baseline, pending, markSeen, markAll
 } from "./notify.js";
@@ -248,6 +249,9 @@ export async function showDetails(id) {
   markSeen(a);
   const link = $("dlLink");
   if (link) link.onclick = () => countDownload(a);
+  const rbox = document.createElement("div");
+  v.appendChild(rbox);
+  renderReviews(a, rbox);
   if (state.admin) {
     const box = document.createElement("div");
     v.appendChild(box);
