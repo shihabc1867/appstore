@@ -5,10 +5,14 @@ import {
 import { state } from "./auth.js";
 import { $, esc, safeUrl, setTop } from "./util.js";
 import { renderAppVault } from "./vault.js";
+import {
+  baseline, pending, markSeen, markAll
+} from "./notify.js";
 
 let cache = null;
 let cat = "all";
 let search = "";
+let flags = {};
 const DAY = 86400000;
 
 export function clearCache() { cache = null; }
@@ -48,6 +52,34 @@ function badge(a) {
   return "";
 }
 
+function flagTag(t) {
+  return t === "new"
+    ? '<span class="tag new">New for you</span>'
+    : '<span class="tag new">Update available</span>';
+}
+
+function banner(p) {
+  if (!p.length) return "";
+  const items = p.map((x) => `
+    <div class="nrow" data-id="${esc(x.app.id)}">
+      <b>${esc(x.app.name)}</b>
+      <span class="mut">${x.type === "new"
+        ? "New app"
+        : "Updated to v" + esc(x.app.version || "?")
+      }</span>
+    </div>`).join("");
+  return `
+    <div id="ban" class="note">
+      <div class="nhead">
+        <b>${p.length} ${p.length > 1
+          ? "updates" : "update"} for you</b>
+        <button id="markAll" class="btn ghost small">
+          Mark all read</button>
+      </div>
+      ${items}
+    </div>`;
+}
+
 function dateOf(ms) {
   return ms ? new Date(ms).toISOString().slice(0, 10) : "-";
 }
@@ -65,7 +97,7 @@ function rows(items) {
         <b>${esc(a.name)}</b>
         <span class="mut">${esc(a.tagline)}</span>
         <span class="tag">${esc(a.category || "App")}</span>
-        ${badge(a)}
+        ${flags[a.id] ? flagTag(flags[a.id]) : badge(a)}
         ${a.published === false
           ? '<span class="tag warn">Hidden</span>' : ""}
         <span class="mut dl">
@@ -114,9 +146,14 @@ export async function showList() {
       esc(e.code || e.message) + "</p>";
     return;
   }
+  baseline(list);
+  const pend = pending(list);
+  flags = {};
+  pend.forEach((x) => { flags[x.app.id] = x.type; });
   const cats = categories(list);
   if (cat !== "all" && !cats.includes(cat)) cat = "all";
   v.innerHTML = `
+    ${banner(pend)}
     <input id="q" class="search" value="${esc(search)}"
      placeholder="Search apps...">
     <div id="chips" class="chips">${chips(cats)}</div>
@@ -139,6 +176,18 @@ export async function showList() {
     const el = e.target.closest("[data-id]");
     if (el) location.hash = "#/app/" + el.dataset.id;
   };
+  const ban = $("ban");
+  if (ban) {
+    ban.onclick = (e) => {
+      if (e.target.closest("#markAll")) {
+        markAll(list);
+        showList();
+        return;
+      }
+      const el = e.target.closest("[data-id]");
+      if (el) location.hash = "#/app/" + el.dataset.id;
+    };
+  }
 }
 
 /* ---------- Details ---------- */
@@ -191,8 +240,12 @@ export async function showDetails(id) {
         ${esc(dateOf(a.createdAt))}</div>
     </div>
     ${shots ? `<div class="shots">${shots}</div>` : ""}
+    ${a.whatsNew ? `
+      <h3>What's new</h3>
+      <p class="desc">${esc(a.whatsNew)}</p>` : ""}
     <h3>About this app</h3>
     <p class="desc">${esc(a.description || "")}</p>`;
+  markSeen(a);
   const link = $("dlLink");
   if (link) link.onclick = () => countDownload(a);
   if (state.admin) {
