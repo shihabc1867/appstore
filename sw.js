@@ -1,4 +1,4 @@
-const CACHE = "store-v2";
+const CACHE = "store-v3";
 const SHELL = [
   "./", "./index.html", "./style.css", "./manifest.json",
   "./firebase.js", "./util.js", "./auth.js",
@@ -25,14 +25,14 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-/* Network first, cache only when offline. */
+/* Always fresh from network; cache only when offline. */
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: "no-store" })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
