@@ -1,5 +1,6 @@
 import {
-  db, collection, doc, getDocs, setDoc, deleteDoc
+  db, collection, collectionGroup, doc, getDocs,
+  setDoc, deleteDoc
 } from "./firebase.js";
 import { state } from "./auth.js";
 import { $, esc, safeUrl, toast } from "./util.js";
@@ -9,6 +10,45 @@ const stars = (n) =>
 
 function dateOf(ms) {
   return ms ? new Date(ms).toISOString().slice(0, 10) : "";
+}
+
+/* Average rating of every app, for the home list.
+   Saved for 10 minutes to save reads. */
+const RKEY = "ratings_v1";
+let ratings = null;
+
+export function clearRatings() {
+  ratings = null;
+  try { localStorage.removeItem(RKEY); } catch (e) { /* ok */ }
+}
+
+export async function loadRatings() {
+  if (ratings) return ratings;
+  try {
+    const c = JSON.parse(localStorage.getItem(RKEY) || "null");
+    if (c && Date.now() - c.t < 600000) {
+      ratings = c.map;
+      return ratings;
+    }
+  } catch (e) { /* ignore */ }
+  const map = {};
+  try {
+    const snap = await getDocs(collectionGroup(db, "reviews"));
+    snap.docs.forEach((d) => {
+      const id = d.ref.parent.parent.id;
+      const m = map[id] || (map[id] = { sum: 0, n: 0 });
+      m.sum += d.data().rating || 0;
+      m.n += 1;
+    });
+  } catch (e) {
+    return {};
+  }
+  ratings = map;
+  try {
+    localStorage.setItem(RKEY,
+      JSON.stringify({ t: Date.now(), map: map }));
+  } catch (e) { /* ok */ }
+  return ratings;
 }
 
 /* Loads all reviews of one app and draws them. */
@@ -140,6 +180,7 @@ async function save(app, box, getPick) {
   try {
     await setDoc(
       doc(db, "apps", app.id, "reviews", u.uid), data);
+    clearRatings();
     toast("Thanks for your review");
     await renderReviews(app, box);
   } catch (e) {
@@ -152,6 +193,7 @@ async function remove(app, box, id) {
   if (!confirm("Delete this review?")) return;
   try {
     await deleteDoc(doc(db, "apps", app.id, "reviews", id));
+    clearRatings();
     toast("Deleted");
     await renderReviews(app, box);
   } catch (e) {
