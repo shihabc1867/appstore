@@ -1,6 +1,6 @@
 import {
   db, collection, collectionGroup, doc, getDocs,
-  setDoc, deleteDoc
+  setDoc, deleteDoc, updateDoc, deleteField
 } from "./firebase.js";
 import { state } from "./auth.js";
 import { $, esc, safeUrl, toast } from "./util.js";
@@ -73,13 +73,22 @@ export async function renderReviews(app, box) {
   draw(app, box, list);
 }
 
+function replyHtml(r) {
+  if (!r.reply || !r.reply.text) return "";
+  return `
+    <div class="reply">
+      <b>Reply from the owner</b>
+      <p class="desc">${esc(r.reply.text)}</p>
+    </div>`;
+}
+
 function others(list, uid) {
   const rest = list.filter((r) => r.id !== uid);
   if (!rest.length) {
     return '<p class="mut">No other reviews yet.</p>';
   }
   return rest.map((r) => `
-    <div class="rv">
+    <div class="rv" data-rid="${esc(r.id)}">
       <div class="rvtop">
         <img class="rvimg" alt=""
          src="${esc(safeUrl(r.photo))}">
@@ -91,11 +100,15 @@ function others(list, uid) {
         </div>
         ${state.admin
           ? `<button class="btn ghost small"
+              data-reply="${esc(r.id)}">${
+              r.reply ? "Edit reply" : "Reply"}</button>
+             <button class="btn ghost small"
               data-del="${esc(r.id)}">Delete</button>`
           : ""}
       </div>
       ${r.text
         ? `<p class="desc">${esc(r.text)}</p>` : ""}
+      ${replyHtml(r)}
     </div>`).join("");
 }
 
@@ -121,6 +134,7 @@ function draw(app, box, list) {
     <div class="mine">
       <p class="lbl">${
         mine ? "Your review" : "Rate this app"}</p>
+      ${mine ? replyHtml(mine) : ""}
       <div id="pick" class="stars pick"></div>
       <textarea id="rv_text" class="inp" rows="3"
        maxlength="500"
@@ -153,6 +167,11 @@ function draw(app, box, list) {
     $("rv_del").onclick = () => remove(app, box, uid);
   }
   $("rv_list").onclick = (e) => {
+    const rp = e.target.closest("[data-reply]");
+    if (rp) {
+      openReply(app, box, list, rp.dataset.reply);
+      return;
+    }
     const b = e.target.closest("[data-del]");
     if (b) remove(app, box, b.dataset.del);
   };
@@ -199,4 +218,51 @@ async function remove(app, box, id) {
   } catch (e) {
     toast("Delete failed: " + (e.code || e.message));
   }
+}
+
+/* Admin: write or change the owner reply. */
+function openReply(app, box, list, rid) {
+  const card = box.querySelector('.rv[data-rid="' + rid + '"]');
+  if (!card || card.querySelector(".rform")) return;
+  const rev = list.find((x) => x.id === rid);
+  const has = rev && rev.reply && rev.reply.text;
+  const form = document.createElement("div");
+  form.className = "rform";
+  form.innerHTML = `
+    <textarea class="inp" rows="3" maxlength="500"
+     placeholder="Write a reply">${
+      esc(has ? rev.reply.text : "")}</textarea>
+    <div class="btnrow">
+      <button class="btn small" data-act="save">
+        Save reply</button>
+      ${has ? `<button class="btn ghost small"
+        data-act="del">Remove reply</button>` : ""}
+      <button class="btn ghost small"
+       data-act="no">Cancel</button>
+    </div>`;
+  card.appendChild(form);
+  form.onclick = async (e) => {
+    const act = e.target.closest("[data-act]");
+    if (!act) return;
+    const ref = doc(db, "apps", app.id, "reviews", rid);
+    try {
+      if (act.dataset.act === "no") {
+        form.remove();
+        return;
+      }
+      if (act.dataset.act === "save") {
+        const text = form.querySelector("textarea")
+          .value.trim().slice(0, 500);
+        if (!text) return;
+        await updateDoc(ref,
+          { reply: { text: text, date: Date.now() } });
+      } else {
+        await updateDoc(ref, { reply: deleteField() });
+      }
+      toast("Saved");
+      await renderReviews(app, box);
+    } catch (err) {
+      toast("Failed: " + (err.code || err.message));
+    }
+  };
 }
