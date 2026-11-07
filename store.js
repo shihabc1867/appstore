@@ -456,6 +456,16 @@ export async function showDetails(id) {
     ${a.whatsNew ? `
       <h3>What's new</h3>
       <p class="desc">${esc(a.whatsNew)}</p>` : ""}
+    ${(a.history || []).length > 1 ? `
+      <details class="help">
+        <summary>Version history</summary>
+        ${a.history.map((h) => `
+          <div class="vh">
+            <b>v${esc(h.version)}</b>
+            <span class="mut">${esc(h.date || "")}</span>
+            <p class="desc">${esc(h.whatsNew || "")}</p>
+          </div>`).join("")}
+      </details>` : ""}
     <h3>About this app</h3>
     <p class="desc">${esc(a.description || "")}</p>`;
   markSeen(a);
