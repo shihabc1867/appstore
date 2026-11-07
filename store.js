@@ -90,6 +90,47 @@ function badge(a) {
   return "";
 }
 
+const isWeb = (a) => a.appType !== "apk";
+
+const WEB_HELP = `
+  <ol>
+    <li>Tap Open app. It opens in your browser.</li>
+    <li>In Chrome, tap the menu (three dots, top right).</li>
+    <li>Tap Install app, or Add to Home screen.</li>
+    <li>Tap Install (or Add). The icon appears on your
+      home screen.</li>
+  </ol>
+  <p class="mut">If you only see Add to Home screen,
+    that is fine. It adds a shortcut to the app.</p>`;
+
+const APK_HELP = `
+  <ol>
+    <li>Tap Download and wait until it finishes.</li>
+    <li>Open the downloaded file from your
+      notification or Files app.</li>
+    <li>If Android says install is blocked, tap
+      Settings and allow "Install unknown apps"
+      for your browser, then go back and install.</li>
+    <li>If Play Protect warns you, tap
+      More details, then Install anyway.</li>
+  </ol>`;
+
+function actionHtml(a, dl) {
+  if (!dl) return '<p class="mut">No link added yet.</p>';
+  const web = isWeb(a);
+  return `
+    <a id="dlLink" href="${esc(dl)}" target="_blank"
+     rel="noopener"><button class="btn block"
+     style="margin-top:16px">${
+      web ? "Open app" : "Download"}</button></a>
+    <details class="help">
+      <summary>${web
+        ? "How to put it on my phone"
+        : "Cannot install? Read this"}</summary>
+      ${web ? WEB_HELP : APK_HELP}
+    </details>`;
+}
+
 function flagTag(t) {
   return t === "new"
     ? '<span class="tag new">New for you</span>'
@@ -135,6 +176,7 @@ function rows(items) {
         <b>${esc(a.name)}</b>
         <span class="mut">${esc(a.tagline)}</span>
         <span class="tag">${esc(a.category || "App")}</span>
+        <span class="tag">${isWeb(a) ? "Web" : "APK"}</span>
         ${flags[a.id] ? flagTag(flags[a.id]) : badge(a)}
         ${a.published === false
           ? '<span class="tag warn">Hidden</span>' : ""}
@@ -265,25 +307,7 @@ export async function showDetails(id) {
         <div>${badge(a)}</div>
       </div>
     </div>
-    ${dl
-      ? `<a id="dlLink" href="${esc(dl)}" target="_blank"
-          rel="noopener"><button class="btn block"
-          style="margin-top:16px">Download</button></a>`
-      : '<p class="mut">No download yet.</p>'}
-    ${dl ? `
-    <details class="help">
-      <summary>Cannot install? Read this</summary>
-      <ol>
-        <li>Tap Download and wait until it finishes.</li>
-        <li>Open the downloaded file from your
-          notification or Files app.</li>
-        <li>If Android says install is blocked, tap
-          Settings and allow "Install unknown apps"
-          for your browser, then go back and install.</li>
-        <li>If Play Protect warns you, tap
-          More details, then Install anyway.</li>
-      </ol>
-    </details>` : ""}
+    ${actionHtml(a, dl)}
     <div class="facts">
       <div class="fact"><span>Version</span>
         ${esc(a.version || "-")}</div>
