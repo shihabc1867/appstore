@@ -5,6 +5,9 @@ import { showAdmin, showForm } from "./admin.js";
 import {
   showVault, showVaultForm, showVaultItem
 } from "./vault.js";
+import {
+  trackLogin, newUsersCount, showUsers
+} from "./users.js";
 
 /* ============================================
    ROUTE TABLE
@@ -20,6 +23,7 @@ const routes = [
   [/^#\/admin\/new$/, () => adminOnly(() => showForm())],
   [/^#\/admin\/edit\/(.+)$/,
     (m) => adminOnly(() => showForm(m[1]))],
+  [/^#\/users$/, () => adminOnly(showUsers)],
   [/^#\/vault$/, () => adminOnly(showVault)],
   [/^#\/vault\/new$/,
     () => adminOnly(() => showVaultForm())],
@@ -74,6 +78,16 @@ $("btnLogin").onclick = async () => {
   $("loginErr").textContent = await login();
 };
 
+/* Admin: show how many new users joined. */
+async function usersBadge() {
+  try {
+    const n = await newUsersCount();
+    if (!n) return;
+    $("btnAdmin").textContent = "Admin (" + n + " new)";
+    toast(n + (n === 1 ? " new user" : " new users"));
+  } catch (e) { /* ignore */ }
+}
+
 watchAuth(async (u) => {
   if (!u) {
     clearCache();
@@ -88,6 +102,8 @@ watchAuth(async (u) => {
     toast("Admin check: " + state.adminErr);
   }
   await route();
+  if (state.admin) usersBadge();
+  else trackLogin(u).catch(() => {});
 });
 
 /* ---------- Install (PWA) ---------- */
