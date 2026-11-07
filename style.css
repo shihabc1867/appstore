@@ -187,3 +187,6 @@ details.help{
 }
 details.help summary{cursor:pointer;color:var(--acc)}
 details.help ol{margin:10px 0 0 18px;line-height:1.6}
+
+.rvimg.big{width:48px;height:48px}
+.info .mut{display:block}
