@@ -10,6 +10,7 @@ import {
 } from "./users.js";
 import { showReports } from "./reports.js";
 import { showDashboard } from "./dashboard.js";
+import { showRestore } from "./restore.js";
 import { clearFavs } from "./favs.js";
 import { initTheme, toggleTheme } from "./theme.js";
 
@@ -30,6 +31,7 @@ const routes = [
   [/^#\/users$/, () => adminOnly(showUsers)],
   [/^#\/reports$/, () => adminOnly(showReports)],
   [/^#\/dashboard$/, () => adminOnly(showDashboard)],
+  [/^#\/restore$/, () => adminOnly(showRestore)],
   [/^#\/vault$/, () => adminOnly(showVault)],
   [/^#\/vault\/new$/,
     () => adminOnly(() => showVaultForm())],
