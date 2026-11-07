@@ -3,6 +3,7 @@ import {
 } from "./firebase.js";
 import { loadApps, getApp, clearCache } from "./store.js";
 import { renderAnnounceEditor } from "./announce.js";
+import { openReportsCount } from "./reports.js";
 import {
   $, esc, safeUrl, imgUrl, iconSrc, setTop, today, toast
 } from "./util.js";
@@ -38,6 +39,10 @@ export async function showAdmin() {
   v.innerHTML = `
     <button id="btnNew" class="btn block"
      style="margin-bottom:14px">+ Add new app</button>
+    <button id="btnDash" class="btn ghost block"
+     style="margin-bottom:14px">Dashboard</button>
+    <button id="btnReports" class="btn ghost block"
+     style="margin-bottom:14px">Reports</button>
     <button id="btnVault" class="btn ghost block"
      style="margin-bottom:14px">Private vault</button>
     <button id="btnUsers" class="btn ghost block"
@@ -53,6 +58,16 @@ export async function showAdmin() {
   $("btnVault").onclick = () => {
     location.hash = "#/vault";
   };
+  $("btnDash").onclick = () => {
+    location.hash = "#/dashboard";
+  };
+  $("btnReports").onclick = () => {
+    location.hash = "#/reports";
+  };
+  openReportsCount().then((n) => {
+    const b = $("btnReports");
+    if (b && n) b.textContent = "Reports (" + n + " open)";
+  }).catch(() => {});
   $("btnUsers").onclick = () => {
     location.hash = "#/users";
   };
