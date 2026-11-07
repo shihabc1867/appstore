@@ -4,10 +4,14 @@ import {
 } from "./firebase.js";
 import { state } from "./auth.js";
 import {
-  $, esc, imgUrl, dlUrl, iconSrc, setTop
+  $, esc, imgUrl, dlUrl, iconSrc, setTop, toast
 } from "./util.js";
 import { renderAppVault } from "./vault.js";
-import { renderReviews } from "./reviews.js";
+import { renderReviews, loadRatings } from "./reviews.js";
+import { loadFavs, isFav, toggleFav } from "./favs.js";
+import {
+  loadAnnouncement, annHtml, bindAnn
+} from "./announce.js";
 import {
   baseline, pending, markSeen, markAll
 } from "./notify.js";
@@ -17,6 +21,10 @@ let cat = "all";
 let search = "";
 let flags = {};
 let offline = false;
+let sort = "new";
+let favIds = [];
+let ratings = {};
+let timer = null;
 const DAY = 86400000;
 
 export function clearCache() { cache = null; }
@@ -164,6 +172,33 @@ function dateOf(ms) {
 }
 
 /* ---------- Home list ---------- */
+function avgOf(a) {
+  const r = ratings[a.id];
+  return r && r.n ? r.sum / r.n : 0;
+}
+
+function ratingTag(a) {
+  const r = ratings[a.id];
+  if (!r || !r.n) return "";
+  return `<span class="tag">★ ${
+    (r.sum / r.n).toFixed(1)} (${r.n})</span>`;
+}
+
+const SORTS = {
+  new: (a, b) => (b.createdAt || 0) - (a.createdAt || 0),
+  dl: (a, b) => (b.downloads || 0) - (a.downloads || 0),
+  rating: (a, b) => avgOf(b) - avgOf(a),
+  name: (a, b) =>
+    String(a.name || "").localeCompare(String(b.name || ""))
+};
+
+const SORT_NAMES = [
+  ["new", "Newest"],
+  ["dl", "Most downloaded"],
+  ["rating", "Top rated"],
+  ["name", "A to Z"]
+];
+
 function rows(items) {
   if (!items.length) {
     return '<p class="mut">No apps found.</p>';
@@ -177,15 +212,19 @@ function rows(items) {
         <span class="mut">${esc(a.tagline)}</span>
         <span class="tag">${esc(a.category || "App")}</span>
         <span class="tag">${isWeb(a) ? "Web" : "APK"}</span>
+        ${ratingTag(a)}
         ${flags[a.id] ? flagTag(flags[a.id]) : badge(a)}
         ${a.published === false
           ? '<span class="tag warn">Hidden</span>' : ""}
         <span class="mut dl">
           ↓ ${esc(a.downloads || 0)}</span>
       </div>
-      <button class="btn ghost" data-id="${esc(a.id)}">
-        Details
-      </button>
+      <div class="side">
+        <button class="heart" data-fav="${esc(a.id)}">${
+          favIds.includes(a.id) ? "♥" : "♡"}</button>
+        <button class="btn ghost small"
+         data-id="${esc(a.id)}">Details</button>
+      </div>
     </div>`).join("");
 }
 
@@ -198,24 +237,61 @@ function categories(list) {
 }
 
 function chips(cats) {
-  if (!cats.length) return "";
-  return ["all"].concat(cats).map((c) => `
-    <button class="chip ${cat === c ? "on" : ""}"
-     data-c="${esc(c)}">${
-      c === "all" ? "All" : esc(c)}</button>`).join("");
+  const all = [["all", "All"], ["__fav", "★ Favorites"]]
+    .concat(cats.map((c) => [c, c]));
+  return all.map((c) => `
+    <button class="chip ${cat === c[0] ? "on" : ""}"
+     data-c="${esc(c[0])}">${esc(c[1])}</button>`).join("");
 }
 
 function filtered(list) {
   const f = search.toLowerCase();
   return list.filter((a) =>
-    (cat === "all" || a.category === cat) &&
+    (cat === "all" ||
+      (cat === "__fav"
+        ? favIds.includes(a.id) : a.category === cat)) &&
     [a.name, a.tagline, a.category].join(" ")
       .toLowerCase().includes(f)
-  );
+  ).sort(SORTS[sort]);
+}
+
+function featHtml(items) {
+  if (!items.length) return "";
+  return `<div id="feat" class="feat">${items.map((a) => `
+    <div class="fcard" data-id="${esc(a.id)}">
+      <img class="ico big" alt=""
+       src="${esc(iconSrc(a))}">
+      <div class="info">
+        <span class="tag new">Featured</span>
+        <b>${esc(a.name)}</b>
+        <span class="mut">${esc(a.tagline)}</span>
+      </div>
+    </div>`).join("")}</div>`;
+}
+
+/* Moves the featured slider every 5 seconds. */
+function startSlider() {
+  clearInterval(timer);
+  const el = $("feat");
+  if (!el || el.children.length < 2) return;
+  timer = setInterval(() => {
+    const f = $("feat");
+    if (!f) {
+      clearInterval(timer);
+      return;
+    }
+    const n = f.children.length;
+    const i = Math.round(f.scrollLeft / f.clientWidth);
+    f.scrollTo({
+      left: ((i + 1) % n) * f.clientWidth,
+      behavior: "smooth"
+    });
+  }, 5000);
 }
 
 export async function showList() {
   setTop("My App Store", null);
+  clearInterval(timer);
   const v = $("view");
   v.innerHTML = '<p class="mut">Loading apps...</p>';
   let list;
@@ -230,26 +306,51 @@ export async function showList() {
     $("retry").onclick = () => showList();
     return;
   }
+  const [ann, favs, rt] = await Promise.all([
+    loadAnnouncement().catch(() => null),
+    loadFavs(),
+    loadRatings()
+  ]);
+  favIds = favs;
+  ratings = rt;
   baseline(list);
   const pend = pending(list);
   flags = {};
   pend.forEach((x) => { flags[x.app.id] = x.type; });
   const cats = categories(list);
-  if (cat !== "all" && !cats.includes(cat)) cat = "all";
+  if (cat !== "all" && cat !== "__fav" &&
+      !cats.includes(cat)) cat = "all";
+  const feat = list.filter((a) =>
+    a.featured && a.published !== false);
   v.innerHTML = `
     ${offline
       ? `<div class="note off">You are offline.
           Showing the last saved list.</div>` : ""}
+    ${annHtml(ann)}
     ${banner(pend)}
-    <input id="q" class="search" value="${esc(search)}"
-     placeholder="Search apps...">
+    ${featHtml(feat)}
+    <div class="srow">
+      <input id="q" class="search" value="${esc(search)}"
+       placeholder="Search apps...">
+      <select id="sortSel" class="inp sel">${
+        SORT_NAMES.map((o) => `
+        <option value="${o[0]}"
+         ${sort === o[0] ? "selected" : ""}>${
+          o[1]}</option>`).join("")}</select>
+    </div>
     <div id="chips" class="chips">${chips(cats)}</div>
     <div id="list">${rows(filtered(list))}</div>`;
   const redraw = () => {
     $("list").innerHTML = rows(filtered(list));
   };
+  bindAnn(ann);
+  startSlider();
   $("q").oninput = (e) => {
     search = e.target.value;
+    redraw();
+  };
+  $("sortSel").onchange = (e) => {
+    sort = e.target.value;
     redraw();
   };
   $("chips").onclick = (e) => {
@@ -259,10 +360,27 @@ export async function showList() {
     $("chips").innerHTML = chips(cats);
     redraw();
   };
-  $("list").onclick = (e) => {
+  $("list").onclick = async (e) => {
+    const h = e.target.closest("[data-fav]");
+    if (h) {
+      try {
+        favIds = await toggleFav(h.dataset.fav);
+        redraw();
+      } catch (err) {
+        toast("Could not save favorite");
+      }
+      return;
+    }
     const el = e.target.closest("[data-id]");
     if (el) location.hash = "#/app/" + el.dataset.id;
   };
+  const feEl = $("feat");
+  if (feEl) {
+    feEl.onclick = (e) => {
+      const el = e.target.closest("[data-id]");
+      if (el) location.hash = "#/app/" + el.dataset.id;
+    };
+  }
   const ban = $("ban");
   if (ban) {
     ban.onclick = (e) => {
@@ -297,6 +415,8 @@ export async function showDetails(id) {
     .map((u) => `<img src="${esc(u)}" alt=""
       loading="lazy">`).join("");
   const dl = dlUrl(a.downloadUrl);
+  await loadFavs();
+  const rt = (await loadRatings())[a.id];
   v.innerHTML = `
     <div class="top">
       <img class="ico big" alt=""
@@ -304,10 +424,19 @@ export async function showDetails(id) {
       <div class="info">
         <h2>${esc(a.name)}</h2>
         <span class="mut">${esc(a.tagline)}</span>
-        <div>${badge(a)}</div>
+        <div>${badge(a)}${rt && rt.n
+          ? `<span class="tag">★ ${
+              (rt.sum / rt.n).toFixed(1)} (${rt.n})</span>`
+          : ""}</div>
       </div>
     </div>
     ${actionHtml(a, dl)}
+    <div class="btnrow">
+      <button id="favBtn" class="btn ghost">${
+        isFav(a.id) ? "♥ Saved" : "♡ Save"}</button>
+      <button id="shareBtn" class="btn ghost">
+        Share</button>
+    </div>
     <div class="facts">
       <div class="fact"><span>Version</span>
         ${esc(a.version || "-")}</div>
@@ -331,6 +460,16 @@ export async function showDetails(id) {
   markSeen(a);
   const link = $("dlLink");
   if (link) link.onclick = () => countDownload(a);
+  $("favBtn").onclick = async () => {
+    try {
+      const ids = await toggleFav(a.id);
+      $("favBtn").textContent =
+        ids.includes(a.id) ? "♥ Saved" : "♡ Save";
+    } catch (err) {
+      toast("Could not save favorite");
+    }
+  };
+  $("shareBtn").onclick = () => share(a);
   const rbox = document.createElement("div");
   v.appendChild(rbox);
   renderReviews(a, rbox);
@@ -350,4 +489,28 @@ async function countDownload(a) {
     const el = $("dlCount");
     if (el) el.textContent = a.downloads;
   } catch (e) { /* ignore */ }
+}
+
+/* Opens the phone share sheet, or copies the link. */
+async function share(a) {
+  const url = location.origin + location.pathname +
+    "#/app/" + a.id;
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: a.name,
+        text: a.name + (a.tagline ? " - " + a.tagline : ""),
+        url: url
+      });
+      return;
+    }
+  } catch (e) {
+    if (e.name === "AbortError") return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Link copied");
+  } catch (e) {
+    toast(url);
+  }
 }
