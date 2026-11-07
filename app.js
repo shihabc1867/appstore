@@ -8,6 +8,8 @@ import {
 import {
   trackLogin, newUsersCount, showUsers
 } from "./users.js";
+import { clearFavs } from "./favs.js";
+import { initTheme, toggleTheme } from "./theme.js";
 
 /* ============================================
    ROUTE TABLE
@@ -59,6 +61,10 @@ async function route() {
 }
 window.addEventListener("hashchange", route);
 
+/* ---------- Theme ---------- */
+initTheme();
+$("btnTheme").onclick = toggleTheme;
+
 /* ---------- Header ---------- */
 $("btnBack").onclick = () => {
   const to = $("btnBack").dataset.to;
@@ -97,6 +103,7 @@ watchAuth(async (u) => {
   $("avatar").src = u.photoURL || "icon-192.png";
   $("btnAdmin").classList.toggle("hide", !state.admin);
   clearCache();
+  clearFavs();
   show("shell");
   if (state.adminErr) {
     toast("Admin check: " + state.adminErr);
