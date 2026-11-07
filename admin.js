@@ -49,6 +49,8 @@ export async function showAdmin() {
      style="margin-bottom:14px">Users and logins</button>
     <button id="btnBackup" class="btn ghost block"
      style="margin-bottom:14px">Download backup</button>
+    <button id="btnRestore" class="btn ghost block"
+     style="margin-bottom:14px">Restore from backup</button>
     ${rows || '<p class="mut">No apps yet.</p>'}
     <div id="annBox"></div>`;
   renderAnnounceEditor($("annBox"));
@@ -72,6 +74,9 @@ export async function showAdmin() {
     location.hash = "#/users";
   };
   $("btnBackup").onclick = backup;
+  $("btnRestore").onclick = () => {
+    location.hash = "#/restore";
+  };
   v.onclick = (e) => {
     const b = e.target.closest("[data-edit]");
     if (b) location.hash = "#/admin/edit/" + b.dataset.edit;
@@ -102,6 +107,7 @@ export async function showForm(id) {
     }
   }
   iconData = a.iconData || "";
+  orig = { history: a.history || [] };
   v.innerHTML = `
     ${field("Name *", "f_name", a.name)}
     ${field("Short line", "f_tagline", a.tagline)}
@@ -202,6 +208,26 @@ function val(id) { return $(id).value.trim(); }
 /* Picked logo, shrunk to a small square picture. */
 let iconData = "";
 
+/* Old values of the app being edited (for version history). */
+let orig = { history: [] };
+
+/* Adds this version to the app's history list. */
+function nextHistory(prev, data) {
+  const h = (prev || []).slice();
+  const v = data.version;
+  if (!v) return h;
+  if (h.length && h[0].version === v) {
+    h[0] = {
+      version: v, whatsNew: data.whatsNew, date: h[0].date
+    };
+  } else {
+    h.unshift({
+      version: v, whatsNew: data.whatsNew, date: today()
+    });
+  }
+  return h.slice(0, 20);
+}
+
 async function toIcon(file) {
   const url = URL.createObjectURL(file);
   try {
@@ -265,6 +291,7 @@ async function save(id) {
     published: $("f_pub").checked,
     updated: today()
   };
+  data.history = nextHistory(orig.history, data);
   $("f_save").disabled = true;
   try {
     if (id) {
