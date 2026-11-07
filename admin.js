@@ -2,6 +2,7 @@ import {
   db, collection, doc, addDoc, setDoc, deleteDoc, getDocs
 } from "./firebase.js";
 import { loadApps, getApp, clearCache } from "./store.js";
+import { renderAnnounceEditor } from "./announce.js";
 import {
   $, esc, safeUrl, imgUrl, iconSrc, setTop, today, toast
 } from "./util.js";
@@ -43,7 +44,9 @@ export async function showAdmin() {
      style="margin-bottom:14px">Users and logins</button>
     <button id="btnBackup" class="btn ghost block"
      style="margin-bottom:14px">Download backup</button>
-    ${rows || '<p class="mut">No apps yet.</p>'}`;
+    ${rows || '<p class="mut">No apps yet.</p>'}
+    <div id="annBox"></div>`;
+  renderAnnounceEditor($("annBox"));
   $("btnNew").onclick = () => {
     location.hash = "#/admin/new";
   };
@@ -132,6 +135,11 @@ export async function showForm(id) {
     <p class="mut hint">
       Change "Version" when you release an update.
       Users then see an update notice.</p>
+    <label class="chk">
+      <input type="checkbox" id="f_feat"
+       ${a.featured ? "checked" : ""}>
+      Featured on home (slider)
+    </label>
     <label class="chk">
       <input type="checkbox" id="f_pub"
        ${a.published !== false ? "checked" : ""}>
@@ -238,6 +246,7 @@ async function save(id) {
     screenshots: shots,
     description: $("f_desc").value.trim(),
     whatsNew: $("f_whats").value.trim(),
+    featured: $("f_feat").checked,
     published: $("f_pub").checked,
     updated: today()
   };
