@@ -8,6 +8,7 @@ import {
 } from "./util.js";
 import { renderAppVault } from "./vault.js";
 import { renderReviews, loadRatings } from "./reviews.js";
+import { reportBox } from "./reports.js";
 import { loadFavs, isFav, toggleFav } from "./favs.js";
 import {
   loadAnnouncement, annHtml, bindAnn
@@ -470,6 +471,11 @@ export async function showDetails(id) {
     }
   };
   $("shareBtn").onclick = () => share(a);
+  if (!state.admin) {
+    const rp = document.createElement("div");
+    v.appendChild(rp);
+    reportBox(a, rp);
+  }
   const rbox = document.createElement("div");
   v.appendChild(rbox);
   renderReviews(a, rbox);
