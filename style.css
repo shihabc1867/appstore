@@ -231,3 +231,29 @@ details.help ol{margin:10px 0 0 18px;line-height:1.6}
   padding:16px; cursor:pointer;
 }
 .note.ann{border-color:var(--acc)}
+
+.fact .n{font-size:24px;font-weight:700;display:block}
+.hb{display:flex;align-items:center;gap:8px;margin:8px 0}
+.hname{
+  width:110px; flex:none; font-size:14px;
+  white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis;
+}
+.hwrap{flex:1;min-width:0}
+.hbar{height:10px;background:var(--acc);border-radius:5px}
+.hb b{font-size:13px;flex:none}
+.bars{
+  display:flex; align-items:flex-end; gap:4px;
+  height:130px; margin-top:10px;
+}
+.barcol{
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-end;
+  min-width:0;
+}
+.bar{
+  width:100%; background:var(--acc);
+  border-radius:3px 3px 0 0;
+}
+.bn{font-size:11px;min-height:14px}
+.bl{font-size:10px;color:var(--mut)}
