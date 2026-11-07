@@ -4,7 +4,7 @@ import {
 } from "./firebase.js";
 import { state } from "./auth.js";
 import { ALERT_URL, ALERT_EVERY } from "./config.js";
-import { $, esc, safeUrl, setTop } from "./util.js";
+import { $, esc, safeUrl, setTop, toast } from "./util.js";
 
 const SEEN = "users_seen";
 
@@ -18,6 +18,16 @@ function writeSeen(ms) {
   try {
     localStorage.setItem(SEEN, String(ms));
   } catch (e) { /* ignore */ }
+}
+
+/* True if the admin blocked this account. */
+export async function amBlocked(user) {
+  try {
+    const s = await getDoc(doc(db, "users", user.uid));
+    return s.exists() && s.data().blocked === true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /* Saves who signed in. Runs once each time the app opens.
@@ -100,7 +110,12 @@ function rows(list, text) {
         <span class="mut">Last seen ${esc(when(u.lastLogin))}
         </span>
         <span class="tag">${esc(u.logins || 0)} visits</span>
+        ${u.blocked
+          ? '<span class="tag warn">Blocked</span>' : ""}
       </div>
+      <button class="btn ghost small"
+       data-block="${esc(u.id)}">${
+        u.blocked ? "Unblock" : "Block"}</button>
     </div>`).join("");
 }
 
@@ -129,8 +144,26 @@ export async function showUsers() {
     <input id="uq" class="search"
      placeholder="Search name or email...">
     <div id="ulist">${rows(list, "")}</div>`;
-  $("uq").oninput = (e) => {
-    $("ulist").innerHTML = rows(list, e.target.value);
+  const redraw = () => {
+    $("ulist").innerHTML = rows(list, $("uq").value);
+  };
+  $("uq").oninput = redraw;
+  $("ulist").onclick = async (e) => {
+    const b = e.target.closest("[data-block]");
+    if (!b) return;
+    const u = list.find((x) => x.id === b.dataset.block);
+    const next = !u.blocked;
+    const ask = next
+      ? "Block " + u.email + "? They cannot use the app."
+      : "Unblock " + u.email + "?";
+    if (!confirm(ask)) return;
+    try {
+      await updateDoc(doc(db, "users", u.id),
+        { blocked: next });
+      u.blocked = next;
+      redraw();
+    } catch (err) {
+      toast("Failed: " + (err.code || err.message));
+    }
   };
 }
-
