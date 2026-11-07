@@ -10,6 +10,18 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="style.css">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem("theme");
+    if (!t) {
+      var l = matchMedia("(prefers-color-scheme: light)");
+      t = l.matches ? "light" : "dark";
+    }
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) { /* ok */ }
+})();
+</script>
 </head>
 <body>
 
@@ -35,6 +47,8 @@
   <header>
     <button id="btnBack" class="back hide">←</button>
     <h1 id="title">My App Store</h1>
+    <button id="btnTheme" class="btn ghost small"
+     title="Change theme">☀</button>
     <button id="btnAdmin" class="btn ghost small hide">
       Admin
     </button>
