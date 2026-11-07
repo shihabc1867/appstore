@@ -257,3 +257,13 @@ details.help ol{margin:10px 0 0 18px;line-height:1.6}
 }
 .bn{font-size:11px;min-height:14px}
 .bl{font-size:10px;color:var(--mut)}
+
+.reply{
+  border-left:3px solid var(--acc);
+  padding-left:10px; margin-top:8px;
+}
+.reply b{font-size:13px}
+.rform{margin-top:10px}
+.rvtop .btn{margin-left:6px}
+.vh{margin:12px 0}
+.vh .desc{margin:4px 0 0}
