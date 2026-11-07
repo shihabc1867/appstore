@@ -6,8 +6,10 @@ import {
   showVault, showVaultForm, showVaultItem
 } from "./vault.js";
 import {
-  trackLogin, newUsersCount, showUsers
+  trackLogin, newUsersCount, showUsers, amBlocked
 } from "./users.js";
+import { showReports } from "./reports.js";
+import { showDashboard } from "./dashboard.js";
 import { clearFavs } from "./favs.js";
 import { initTheme, toggleTheme } from "./theme.js";
 
@@ -26,6 +28,8 @@ const routes = [
   [/^#\/admin\/edit\/(.+)$/,
     (m) => adminOnly(() => showForm(m[1]))],
   [/^#\/users$/, () => adminOnly(showUsers)],
+  [/^#\/reports$/, () => adminOnly(showReports)],
+  [/^#\/dashboard$/, () => adminOnly(showDashboard)],
   [/^#\/vault$/, () => adminOnly(showVault)],
   [/^#\/vault\/new$/,
     () => adminOnly(() => showVaultForm())],
@@ -98,6 +102,13 @@ watchAuth(async (u) => {
   if (!u) {
     clearCache();
     show("login");
+    return;
+  }
+  if (!state.admin && await amBlocked(u)) {
+    await logout();
+    show("login");
+    $("loginErr").textContent =
+      "This account is blocked. Contact the owner.";
     return;
   }
   $("avatar").src = u.photoURL || "icon-192.png";
