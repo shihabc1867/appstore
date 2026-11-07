@@ -1,5 +1,5 @@
 import {
-  db, collection, doc, addDoc, setDoc, deleteDoc
+  db, collection, doc, addDoc, setDoc, deleteDoc, getDocs
 } from "./firebase.js";
 import { loadApps, getApp, clearCache } from "./store.js";
 import {
@@ -39,6 +39,10 @@ export async function showAdmin() {
      style="margin-bottom:14px">+ Add new app</button>
     <button id="btnVault" class="btn ghost block"
      style="margin-bottom:14px">Private vault</button>
+    <button id="btnUsers" class="btn ghost block"
+     style="margin-bottom:14px">Users and logins</button>
+    <button id="btnBackup" class="btn ghost block"
+     style="margin-bottom:14px">Download backup</button>
     ${rows || '<p class="mut">No apps yet.</p>'}`;
   $("btnNew").onclick = () => {
     location.hash = "#/admin/new";
@@ -46,6 +50,10 @@ export async function showAdmin() {
   $("btnVault").onclick = () => {
     location.hash = "#/vault";
   };
+  $("btnUsers").onclick = () => {
+    location.hash = "#/users";
+  };
+  $("btnBackup").onclick = backup;
   v.onclick = (e) => {
     const b = e.target.closest("[data-edit]");
     if (b) location.hash = "#/admin/edit/" + b.dataset.edit;
@@ -79,6 +87,15 @@ export async function showForm(id) {
   v.innerHTML = `
     ${field("Name *", "f_name", a.name)}
     ${field("Short line", "f_tagline", a.tagline)}
+    <label class="lbl" for="f_type">App type</label>
+    <select id="f_type" class="inp">
+      <option value="web"
+       ${a.appType !== "apk" ? "selected" : ""}>
+        Web app (opens in browser)</option>
+      <option value="apk"
+       ${a.appType === "apk" ? "selected" : ""}>
+        Android APK (download file)</option>
+    </select>
     ${field("Category", "f_category", a.category)}
     ${field("Version", "f_version", a.version)}
     ${field("Size (e.g. 12 MB)", "f_size", a.size)}
@@ -98,9 +115,9 @@ export async function showForm(id) {
     ${field("Or logo image link", "f_icon", a.iconUrl,
       "Direct image link. GitHub or Google Drive " +
       "(shared with anyone) links also work.")}
-    ${field("Download link", "f_dl", a.downloadUrl,
-      "GitHub Releases APK link, or Google Drive " +
-      "(shared with anyone with the link).")}
+    ${field("App link", "f_dl", a.downloadUrl,
+      "Web app: its https address. APK: GitHub " +
+      "Releases link or shared Google Drive link.")}
     <label class="lbl" for="f_shots">
       Screenshot links (one per line)</label>
     <textarea id="f_shots" class="inp" rows="4">${
@@ -194,7 +211,7 @@ async function save(id) {
     return;
   }
   const urls = [
-    ["f_icon", "Icon link"], ["f_dl", "Download link"]
+    ["f_icon", "Icon link"], ["f_dl", "App link"]
   ];
   for (const [k, label] of urls) {
     if (val(k) && !safeUrl(val(k))) {
@@ -214,6 +231,7 @@ async function save(id) {
     category: val("f_category"),
     version: val("f_version"),
     size: val("f_size"),
+    appType: $("f_type").value,
     iconUrl: val("f_icon"),
     iconData: iconData,
     downloadUrl: val("f_dl"),
@@ -250,5 +268,34 @@ async function remove(id) {
   } catch (e) {
     $("f_err").textContent =
       "Delete failed: " + (e.code || e.message);
+  }
+}
+
+/* Saves apps, vault and users into one file. */
+async function backup() {
+  try {
+    const grab = async (name) => {
+      const s = await getDocs(collection(db, name));
+      return s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    };
+    const out = {
+      date: today(),
+      apps: await grab("apps"),
+      private: await grab("private"),
+      users: await grab("users")
+    };
+    const blob = new Blob(
+      [JSON.stringify(out, null, 1)],
+      { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "backup-" + today() + ".json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    toast("Backup downloaded");
+  } catch (e) {
+    toast("Backup failed: " + (e.code || e.message));
   }
 }
