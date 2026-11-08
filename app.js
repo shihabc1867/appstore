@@ -13,6 +13,7 @@ import { showDashboard } from "./dashboard.js";
 import { showRestore } from "./restore.js";
 import { clearFavs } from "./favs.js";
 import { initTheme, toggleTheme } from "./theme.js";
+import { initLang, toggleLang } from "./i18n.js";
 
 /* ============================================
    ROUTE TABLE
@@ -70,6 +71,10 @@ window.addEventListener("hashchange", route);
 /* ---------- Theme ---------- */
 initTheme();
 $("btnTheme").onclick = toggleTheme;
+
+/* ---------- Language ---------- */
+initLang();
+$("btnLang").onclick = toggleLang;
 
 /* ---------- Header ---------- */
 $("btnBack").onclick = () => {
