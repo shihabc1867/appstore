@@ -5,6 +5,10 @@ import { loadApps, getApp, clearCache } from "./store.js";
 import { renderAnnounceEditor } from "./announce.js";
 import { openReportsCount } from "./reports.js";
 import {
+  getShots, saveShots, fileToShot, totalSize,
+  MAX_SHOTS, MAX_ALL
+} from "./shots.js";
+import {
   $, esc, safeUrl, imgUrl, iconSrc, setTop, today, toast
 } from "./util.js";
 
@@ -108,6 +112,7 @@ export async function showForm(id) {
   }
   iconData = a.iconData || "";
   orig = { history: a.history || [] };
+  shotData = id ? await getShots(id) : [];
   v.innerHTML = `
     ${field("Name *", "f_name", a.name)}
     ${field("Short line", "f_tagline", a.tagline)}
@@ -146,6 +151,14 @@ export async function showForm(id) {
       Screenshot links (one per line)</label>
     <textarea id="f_shots" class="inp" rows="4">${
       esc((a.screenshots || []).join("\n"))}</textarea>
+    <label class="lbl">Screenshots from phone</label>
+    <div id="f_shotprev"></div>
+    <button id="f_shotpick" type="button"
+     class="btn ghost small">Add from phone</button>
+    <input id="f_shotfile" type="file" accept="image/*"
+     multiple class="hide">
+    <p class="mut hint">
+      Up to 6 pictures. They are made smaller on your phone.</p>
     <label class="lbl" for="f_desc">Full description</label>
     <textarea id="f_desc" class="inp" rows="8">${
       esc(a.description)}</textarea>
@@ -199,6 +212,43 @@ export async function showForm(id) {
         "Could not use this image: " + err.message;
     }
   };
+  const paintShots = () => {
+    $("f_shotprev").innerHTML = shotData.map((d, i) => `
+      <div class="thumb">
+        <img src="${d}" alt="">
+        <button type="button" class="x"
+         data-rm="${i}">&times;</button>
+      </div>`).join("");
+  };
+  paintShots();
+  $("f_shotprev").onclick = (e) => {
+    const b = e.target.closest("[data-rm]");
+    if (!b) return;
+    shotData.splice(Number(b.dataset.rm), 1);
+    paintShots();
+  };
+  $("f_shotpick").onclick = () => $("f_shotfile").click();
+  $("f_shotfile").onchange = async (e) => {
+    const files = Array.from(e.target.files);
+    e.target.value = "";
+    for (const file of files) {
+      try {
+        if (shotData.length >= MAX_SHOTS) {
+          throw new Error("only " + MAX_SHOTS + " pictures");
+        }
+        const d = await fileToShot(file);
+        if (totalSize(shotData) + d.length > MAX_ALL) {
+          throw new Error("too many big pictures");
+        }
+        shotData.push(d);
+      } catch (err) {
+        $("f_err").textContent =
+          "Could not add picture: " + err.message;
+        break;
+      }
+    }
+    paintShots();
+  };
   $("f_save").onclick = () => save(id);
   if (id) $("f_del").onclick = () => remove(id);
 }
@@ -207,6 +257,9 @@ function val(id) { return $(id).value.trim(); }
 
 /* Picked logo, shrunk to a small square picture. */
 let iconData = "";
+
+/* Gallery screenshots of the app being edited. */
+let shotData = [];
 
 /* Old values of the app being edited (for version history). */
 let orig = { history: [] };
@@ -294,12 +347,15 @@ async function save(id) {
   data.history = nextHistory(orig.history, data);
   $("f_save").disabled = true;
   try {
+    let appId = id;
     if (id) {
       await setDoc(doc(db, "apps", id), data, { merge: true });
     } else {
       data.createdAt = Date.now();
-      await addDoc(collection(db, "apps"), data);
+      const ref = await addDoc(collection(db, "apps"), data);
+      appId = ref.id;
     }
+    if (id || shotData.length) await saveShots(appId, shotData);
     clearCache();
     toast("Saved");
     location.hash = "#/admin";
@@ -333,7 +389,8 @@ async function backup() {
       date: today(),
       apps: await grab("apps"),
       private: await grab("private"),
-      users: await grab("users")
+      users: await grab("users"),
+      shots: await grab("appshots")
     };
     const blob = new Blob(
       [JSON.stringify(out, null, 1)],
