@@ -46,12 +46,17 @@ async function onFile(e) {
     if (apps.length + items.length > 2000) {
       throw new Error("The file is too big.");
     }
-    data = { apps: apps, items: items };
+    const shots = Array.isArray(j.shots) ? j.shots : [];
+    if (shots.some(badItem)) {
+      throw new Error("The file has broken items.");
+    }
+    data = { apps: apps, items: items, shots: shots };
     info.innerHTML = `
       <div class="mine" style="margin-top:14px">
         <p>Backup date: ${esc(j.date || "unknown")}</p>
         <p>${apps.length} apps and ${items.length}
           private items found.</p>
+        <p>${shots.length} screenshot sets found.</p>
         <button id="rs_go" class="btn block"
          style="margin-top:12px">Restore now</button>
       </div>
@@ -72,6 +77,7 @@ async function go() {
     const jobs = [];
     data.apps.forEach((x) => jobs.push(["apps", x]));
     data.items.forEach((x) => jobs.push(["private", x]));
+    data.shots.forEach((x) => jobs.push(["appshots", x]));
     for (let i = 0; i < jobs.length; i += 400) {
       const b = writeBatch(db);
       jobs.slice(i, i + 400).forEach((j) => {
