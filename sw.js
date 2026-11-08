@@ -1,4 +1,4 @@
-const CACHE = "store-v15";
+const CACHE = "store-v16";
 const SHELL = [
   "./", "./index.html", "./style.css", "./manifest.json",
   "./firebase.js", "./util.js", "./auth.js",
