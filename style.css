@@ -267,3 +267,19 @@ details.help ol{margin:10px 0 0 18px;line-height:1.6}
 .rvtop .btn{margin-left:6px}
 .vh{margin:12px 0}
 .vh .desc{margin:4px 0 0}
+
+#f_shotprev{
+  display:flex; gap:8px; overflow-x:auto;
+  margin:8px 0;
+}
+.thumb{position:relative;flex:none}
+.thumb img{
+  height:110px; border-radius:10px;
+  display:block; background:var(--line);
+}
+.thumb .x{
+  position:absolute; top:3px; right:3px;
+  width:24px; height:24px; border-radius:50%;
+  background:rgba(0,0,0,.65); color:#fff;
+  font-size:16px; line-height:1;
+}
