@@ -9,6 +9,7 @@ import {
 import { renderAppVault } from "./vault.js";
 import { renderReviews, loadRatings } from "./reviews.js";
 import { reportBox } from "./reports.js";
+import { getShots } from "./shots.js";
 import { loadFavs, isFav, toggleFav } from "./favs.js";
 import {
   loadAnnouncement, annHtml, bindAnn
@@ -469,6 +470,23 @@ export async function showDetails(id) {
     <h3>About this app</h3>
     <p class="desc">${esc(a.description || "")}</p>`;
   markSeen(a);
+  getShots(a.id).then((imgs) => {
+    if (!imgs.length || location.hash !== "#/app/" + a.id) {
+      return;
+    }
+    let box = v.querySelector(".shots");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "shots";
+      v.querySelector(".facts").after(box);
+    }
+    imgs.slice().reverse().forEach((src) => {
+      const im = document.createElement("img");
+      im.src = src;
+      im.alt = "";
+      box.prepend(im);
+    });
+  });
   const link = $("dlLink");
   if (link) link.onclick = () => countDownload(a);
   $("favBtn").onclick = async () => {
