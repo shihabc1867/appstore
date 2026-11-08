@@ -1,10 +1,15 @@
 import {
   db, collection, doc, getDocs, getDoc,
-  addDoc, setDoc, deleteDoc
+  writeBatch
 } from "./firebase.js";
 import {
   $, esc, safeUrl, imgUrl, setTop, today, toast
 } from "./util.js";
+
+/* Small files are stored inside Firestore in pieces. */
+const MAX_FILE = 1000000;
+const CHUNK = 400000;
+const pad = (i) => String(i).padStart(3, "0");
 
 /* Types of items the admin can keep. */
 export const KINDS = [
@@ -67,7 +72,8 @@ function oneRow(a, names, showApp) {
       <div class="info">
         <b>${esc(a.title)}</b>
         <span class="mut">${esc(
-          a.kind === "note" ? a.note : a.url)}</span>
+          a.kind === "note" ? a.note
+            : (a.url || a.fileName))}</span>
         <span class="tag">${esc(label(a.kind))}</span>
         ${showApp
           ? `<span class="tag">${esc(
@@ -220,6 +226,64 @@ function preview(a) {
   return "";
 }
 
+function readB64(f) {
+  return new Promise((ok, no) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(",")[1] || "");
+    r.onerror = () => no(new Error("Could not read file"));
+    r.readAsDataURL(f);
+  });
+}
+
+function toBlob(b64, type) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    arr[i] = bin.charCodeAt(i);
+  }
+  return new Blob([arr],
+    { type: type || "application/octet-stream" });
+}
+
+/* Loads the pieces of an uploaded file and shows it. */
+async function showFile(a, box) {
+  box.innerHTML = '<p class="mut">Loading file...</p>';
+  try {
+    const snap = await getDocs(
+      collection(db, "private", a.id, "chunks"));
+    const parts = snap.docs
+      .sort((x, y) => (x.id < y.id ? -1 : 1))
+      .map((d) => d.data().d || "");
+    if (!parts.length || parts.length !== a.chunks) {
+      box.innerHTML =
+        '<p class="err">File data not found.</p>';
+      return;
+    }
+    const blob = toBlob(parts.join(""), a.fileType);
+    const u = URL.createObjectURL(blob);
+    const t = a.fileType || "";
+    let pv = "";
+    if (t.startsWith("image/")) {
+      pv = `<img class="pv" src="${u}" alt="">`;
+    } else if (t.startsWith("audio/")) {
+      pv = `<audio class="pv" controls src="${u}"></audio>`;
+    } else if (t.startsWith("video/")) {
+      pv = `<video class="pv" controls playsinline
+        src="${u}"></video>`;
+    }
+    box.innerHTML = `
+      ${pv}
+      <p class="mut">${esc(a.fileName)}</p>
+      <a id="fdl" href="${u}"
+       download="${esc(a.fileName)}"><button
+       class="btn block" style="margin-top:10px">
+       Download file</button></a>`;
+  } catch (e) {
+    box.innerHTML = '<p class="err">Could not load: ' +
+      esc(e.code || e.message) + "</p>";
+  }
+}
+
 const backOf = (a) =>
   a.appId ? "#/app/" + a.appId : "#/vault";
 
@@ -244,6 +308,7 @@ export async function showVaultItem(id) {
     <span class="tag">${esc(appLabel(a, names))}</span>
     <span class="mut">${esc(a.updated || "")}</span>
     ${preview(a)}
+    ${a.fileName ? '<div id="fbox"></div>' : ""}
     ${a.note
       ? `<p class="desc">${esc(a.note)}</p>` : ""}
     ${u
@@ -256,6 +321,7 @@ export async function showVaultItem(id) {
   $("vEdit").onclick = () => {
     location.hash = "#/vault/edit/" + id;
   };
+  if (a.fileName) showFile(a, $("fbox"));
 }
 
 /* ---------- Add / Edit ---------- */
@@ -295,20 +361,40 @@ export async function showVaultForm(id, presetApp) {
     <label class="lbl" for="v_note">Note</label>
     <textarea id="v_note" class="inp"
      rows="8">${esc(a.note)}</textarea>
+    <label class="lbl" for="v_file">
+      Upload from phone (up to 1 MB)</label>
+    <input id="v_file" type="file" class="inp">
+    ${a.fileName ? `
+      <p class="mut">Current file: ${esc(a.fileName)}</p>
+      <label class="mut"><input id="v_rmfile"
+       type="checkbox"> Remove current file</label>` : ""}
     <p id="v_err" class="err"></p>
     <button id="v_save" class="btn block">Save</button>
     ${id ? `<button id="v_del" class="btn block danger"
       style="margin-top:12px">Delete item</button>` : ""}`;
-  $("v_save").onclick = () => save(id);
+  $("v_file").onchange = () => {
+    const f = $("v_file").files[0];
+    if (!f) return;
+    const k = $("v_kind");
+    if (k.value === "link") {
+      const m = (f.type || "").split("/")[0];
+      k.value = ["image", "audio", "video"].includes(m)
+        ? m : "file";
+    }
+  };
+  $("v_save").onclick = () => save(id, a);
   if (id) $("v_del").onclick = () => remove(id, a);
 }
 
 const val = (i) => $(i).value.trim();
 
-async function save(id) {
+async function save(id, old) {
   const err = $("v_err");
   err.textContent = "";
   const kind = $("v_kind").value;
+  const file = $("v_file").files[0];
+  const rm = $("v_rmfile") && $("v_rmfile").checked;
+  const keep = old.fileName && !rm && !file;
   if (!val("v_title")) {
     err.textContent = "Title is required.";
     return;
@@ -317,7 +403,12 @@ async function save(id) {
     err.textContent = "Link must start with https://";
     return;
   }
-  if (kind === "note" ? !val("v_note") : !val("v_url")) {
+  if (file && file.size > MAX_FILE) {
+    err.textContent = "File is too big (max 1 MB).";
+    return;
+  }
+  const has = val("v_url") || file || keep;
+  if (kind === "note" ? !val("v_note") : !has) {
     err.textContent = kind === "note"
       ? "Write something in the note."
       : "A link is needed for this type.";
@@ -333,13 +424,38 @@ async function save(id) {
   };
   $("v_save").disabled = true;
   try {
-    if (id) {
-      await setDoc(doc(db, "private", id), data,
-        { merge: true });
-    } else {
-      data.createdAt = Date.now();
-      await addDoc(collection(db, "private"), data);
+    const ref = id
+      ? doc(db, "private", id)
+      : doc(collection(db, "private"));
+    const batch = writeBatch(db);
+    const oldN = old.chunks || 0;
+    let n = oldN;
+    if (file) {
+      const b64 = await readB64(file);
+      n = Math.ceil(b64.length / CHUNK);
+      for (let i = 0; i < n; i++) {
+        batch.set(
+          doc(db, "private", ref.id, "chunks", pad(i)),
+          { d: b64.slice(i * CHUNK, (i + 1) * CHUNK) });
+      }
+      data.fileName = file.name;
+      data.fileType = file.type || "";
+      data.fileSize = file.size;
+      data.chunks = n;
+    } else if (!keep) {
+      n = 0;
+      data.fileName = "";
+      data.fileType = "";
+      data.fileSize = 0;
+      data.chunks = 0;
     }
+    for (let i = n; i < oldN; i++) {
+      batch.delete(
+        doc(db, "private", ref.id, "chunks", pad(i)));
+    }
+    if (!id) data.createdAt = Date.now();
+    batch.set(ref, data, { merge: true });
+    await batch.commit();
     clearVault();
     toast("Saved");
     location.hash = backOf(data);
@@ -352,7 +468,12 @@ async function save(id) {
 async function remove(id, a) {
   if (!confirm("Delete this item for good?")) return;
   try {
-    await deleteDoc(doc(db, "private", id));
+    const batch = writeBatch(db);
+    for (let i = 0; i < (a.chunks || 0); i++) {
+      batch.delete(doc(db, "private", id, "chunks", pad(i)));
+    }
+    batch.delete(doc(db, "private", id));
+    await batch.commit();
     clearVault();
     toast("Deleted");
     location.hash = backOf(a);
