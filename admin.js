@@ -53,8 +53,10 @@ export async function showAdmin() {
      style="margin-bottom:14px">Questions</button>
     <button id="btnVault" class="btn ghost block"
      style="margin-bottom:14px">Private vault</button>
+    ${pushReady() ? `
     <button id="btnPush" class="btn ghost block"
-     style="margin-bottom:14px">Send notification</button>
+     style="margin-bottom:14px">Send notification</button>`
+      : ""}
     <button id="btnUsers" class="btn ghost block"
      style="margin-bottom:14px">Users and logins</button>
     <button id="btnBackup" class="btn ghost block"
@@ -87,9 +89,11 @@ export async function showAdmin() {
     const b = $("btnReports");
     if (b && n) b.textContent = "Reports (" + n + " open)";
   }).catch(() => {});
-  $("btnPush").onclick = () => {
-    location.hash = "#/push";
-  };
+  if ($("btnPush")) {
+    $("btnPush").onclick = () => {
+      location.hash = "#/push";
+    };
+  }
   $("btnUsers").onclick = () => {
     location.hash = "#/users";
   };
