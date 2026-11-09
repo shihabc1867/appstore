@@ -9,7 +9,9 @@ import {
   trackLogin, newUsersCount, showUsers, amBlocked
 } from "./users.js";
 import { showReports } from "./reports.js";
+import { showQuestions } from "./questions.js";
 import { showDashboard } from "./dashboard.js";
+import { showPushSend } from "./push.js";
 import { showRestore } from "./restore.js";
 import { clearFavs } from "./favs.js";
 import { initTheme, toggleTheme } from "./theme.js";
@@ -30,8 +32,10 @@ const routes = [
   [/^#\/admin\/edit\/(.+)$/,
     (m) => adminOnly(() => showForm(m[1]))],
   [/^#\/users$/, () => adminOnly(showUsers)],
+  [/^#\/questions$/, () => adminOnly(showQuestions)],
   [/^#\/reports$/, () => adminOnly(showReports)],
   [/^#\/dashboard$/, () => adminOnly(showDashboard)],
+  [/^#\/push$/, () => adminOnly(showPushSend)],
   [/^#\/restore$/, () => adminOnly(showRestore)],
   [/^#\/vault$/, () => adminOnly(showVault)],
   [/^#\/vault\/new$/,
