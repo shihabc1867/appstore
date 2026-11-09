@@ -5,6 +5,7 @@ import { loadApps, getApp, clearCache } from "./store.js";
 import { pushReady, pushTo } from "./push.js";
 import { renderAnnounceEditor } from "./announce.js";
 import { openReportsCount } from "./reports.js";
+import { openQuestionsCount } from "./questions.js";
 import {
   getShots, saveShots, fileToShot, totalSize,
   MAX_SHOTS, MAX_ALL
@@ -48,6 +49,8 @@ export async function showAdmin() {
      style="margin-bottom:14px">Dashboard</button>
     <button id="btnReports" class="btn ghost block"
      style="margin-bottom:14px">Reports</button>
+    <button id="btnQuestions" class="btn ghost block"
+     style="margin-bottom:14px">Questions</button>
     <button id="btnVault" class="btn ghost block"
      style="margin-bottom:14px">Private vault</button>
     <button id="btnPush" class="btn ghost block"
@@ -73,6 +76,13 @@ export async function showAdmin() {
   $("btnReports").onclick = () => {
     location.hash = "#/reports";
   };
+  $("btnQuestions").onclick = () => {
+    location.hash = "#/questions";
+  };
+  openQuestionsCount().then((n) => {
+    const b = $("btnQuestions");
+    if (b && n) b.textContent = "Questions (" + n + " open)";
+  }).catch(() => {});
   openReportsCount().then((n) => {
     const b = $("btnReports");
     if (b && n) b.textContent = "Reports (" + n + " open)";
