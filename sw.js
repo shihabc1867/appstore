@@ -1,4 +1,4 @@
-const CACHE = "store-v19";
+const CACHE = "store-v20";
 const SHELL = [
   "./", "./index.html", "./style.css", "./manifest.json",
   "./firebase.js", "./util.js", "./auth.js",
@@ -7,7 +7,7 @@ const SHELL = [
   "./config.js", "./favs.js", "./announce.js",
   "./theme.js", "./reports.js", "./dashboard.js",
   "./restore.js", "./i18n.js", "./shots.js",
-  "./push.js", "./app.js",
+  "./push.js", "./questions.js", "./app.js",
   "./icon-192.png", "./icon-512.png"
 ];
 
