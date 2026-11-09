@@ -9,6 +9,7 @@ import {
 import { renderAppVault } from "./vault.js";
 import { renderReviews, loadRatings } from "./reviews.js";
 import { reportBox } from "./reports.js";
+import { questionBox } from "./questions.js";
 import { getShots } from "./shots.js";
 import { loadFavs, isFav, toggleFav } from "./favs.js";
 import {
@@ -506,6 +507,9 @@ export async function showDetails(id) {
     const rp = document.createElement("div");
     v.appendChild(rp);
     reportBox(a, rp);
+    const qb = document.createElement("div");
+    v.insertBefore(qb, rp);
+    questionBox(a, qb);
   }
   const rbox = document.createElement("div");
   v.appendChild(rbox);
