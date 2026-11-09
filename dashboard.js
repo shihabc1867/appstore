@@ -60,24 +60,81 @@ function dayBars(users) {
       </div>`).join("")}</div>`;
 }
 
+/* Downloads per day, per app (last 14 days). */
+function dlSection(apps, rows) {
+  const now = Date.now();
+  const keys = [];
+  for (let i = 13; i >= 0; i--) keys.push(dayKey(now - i * DAY));
+  const by = {};
+  const all = {};
+  rows.forEach((r) => {
+    if (!keys.includes(r.day)) return;
+    by[r.appId] = by[r.appId] || {};
+    by[r.appId][r.day] = (by[r.appId][r.day] || 0) + r.n;
+    all[r.day] = (all[r.day] || 0) + r.n;
+  });
+  const total = keys.reduce((s, k) => s + (all[k] || 0), 0);
+  if (!total) {
+    return '<p class="mut">No downloads counted yet.</p>';
+  }
+  const max = Math.max(1, ...keys.map((k) => all[k] || 0));
+  const chart = `
+    <div class="bars">${keys.map((k) => `
+      <div class="barcol" title="${esc(k)}: ${all[k] || 0}">
+        <span class="bn">${all[k] || ""}</span>
+        <div class="bar" style="height:${
+          Math.round((all[k] || 0) / max * 80) + 2}px"></div>
+        <span class="bl">${esc(k.slice(8))}</span>
+      </div>`).join("")}</div>`;
+  const last7 = keys.slice(7);
+  const list = apps.map((a) => {
+    const m = by[a.id] || {};
+    const vals = last7.map((k) => m[k] || 0);
+    return {
+      name: a.name || "App", vals: vals,
+      sum: vals.reduce((s, x) => s + x, 0)
+    };
+  }).filter((x) => x.sum)
+    .sort((x, y) => y.sum - x.sum).slice(0, 8);
+  const rowsHtml = list.map((x) => {
+    const mx = Math.max(1, ...x.vals);
+    return `
+      <div class="hb">
+        <span class="hname">${esc(x.name)}</span>
+        <div class="spark">${x.vals.map((n) => `
+          <i style="height:${Math.round(n / mx * 22) + 2}px"
+           title="${n}"></i>`).join("")}</div>
+        <b>${x.sum}</b>
+      </div>`;
+  }).join("");
+  return chart + `
+    <h3 style="margin-top:20px">Per app, last 7 days</h3>
+    ${rowsHtml || '<p class="mut">Nothing in 7 days.</p>'}`;
+}
+
 export async function showDashboard() {
   setTop("Dashboard", "#/admin");
   const v = $("view");
   v.innerHTML = '<p class="mut">Loading...</p>';
-  let apps, users, openReports, ratings;
+  let apps, users, openReports, ratings, dls;
   try {
     const rq = query(collection(db, "reports"),
       where("status", "==", "open"));
+    const from = dayKey(Date.now() - 13 * DAY);
+    const dq = query(collection(db, "dl"),
+      where("day", ">=", from));
     const res = await Promise.all([
       loadApps(),
       getDocs(collection(db, "users")),
       getDocs(rq),
-      loadRatings()
+      loadRatings(),
+      getDocs(dq)
     ]);
     apps = res[0];
     users = res[1].docs.map((d) => d.data());
     openReports = res[2].size;
     ratings = res[3];
+    dls = res[4].docs.map((x) => x.data());
   } catch (e) {
     v.innerHTML = '<p class="err">Could not load: ' +
       esc(e.code || e.message) + "</p>";
@@ -131,6 +188,8 @@ export async function showDashboard() {
     </div>
     <h3 style="margin-top:20px">New users, last 14 days</h3>
     ${dayBars(users)}
+    <h3 style="margin-top:20px">Downloads, last 14 days</h3>
+    ${dlSection(apps, dls)}
     <h3 style="margin-top:20px">Most downloaded</h3>
     ${hbars(topDl)}
     <h3 style="margin-top:20px">Top rated</h3>
