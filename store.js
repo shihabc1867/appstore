@@ -1,6 +1,6 @@
 import {
   db, collection, doc, getDocs, getDoc,
-  query, where, updateDoc, increment
+  query, where, updateDoc, setDoc, increment
 } from "./firebase.js";
 import { state } from "./auth.js";
 import {
@@ -14,6 +14,7 @@ import { loadFavs, isFav, toggleFav } from "./favs.js";
 import {
   loadAnnouncement, annHtml, bindAnn
 } from "./announce.js";
+import { renderPushBox } from "./push.js";
 import {
   baseline, pending, markSeen, markAll
 } from "./notify.js";
@@ -328,6 +329,7 @@ export async function showList() {
     ${offline
       ? `<div class="note off">You are offline.
           Showing the last saved list.</div>` : ""}
+    <div id="pushBox"></div>
     ${annHtml(ann)}
     ${banner(pend)}
     ${featHtml(feat)}
@@ -342,6 +344,7 @@ export async function showList() {
     </div>
     <div id="chips" class="chips">${chips(cats)}</div>
     <div id="list">${rows(filtered(list))}</div>`;
+  renderPushBox($("pushBox"));
   const redraw = () => {
     $("list").innerHTML = rows(filtered(list));
   };
@@ -522,6 +525,24 @@ async function countDownload(a) {
     a.downloads = (a.downloads || 0) + 1;
     const el = $("dlCount");
     if (el) el.textContent = a.downloads;
+  } catch (e) { /* ignore */ }
+  countDaily(a);
+}
+
+function localDay() {
+  const d = new Date();
+  const p = (n) => (n < 10 ? "0" + n : "" + n);
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) +
+    "-" + p(d.getDate());
+}
+
+/* One small counter per app per day (for the graph). */
+async function countDaily(a) {
+  const day = localDay();
+  try {
+    await setDoc(doc(db, "dl", a.id + "__" + day),
+      { appId: a.id, day: day, n: increment(1) },
+      { merge: true });
   } catch (e) { /* ignore */ }
 }
 
