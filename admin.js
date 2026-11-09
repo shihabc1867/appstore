@@ -2,6 +2,7 @@ import {
   db, collection, doc, addDoc, setDoc, deleteDoc, getDocs
 } from "./firebase.js";
 import { loadApps, getApp, clearCache } from "./store.js";
+import { pushReady, pushTo } from "./push.js";
 import { renderAnnounceEditor } from "./announce.js";
 import { openReportsCount } from "./reports.js";
 import {
@@ -49,6 +50,8 @@ export async function showAdmin() {
      style="margin-bottom:14px">Reports</button>
     <button id="btnVault" class="btn ghost block"
      style="margin-bottom:14px">Private vault</button>
+    <button id="btnPush" class="btn ghost block"
+     style="margin-bottom:14px">Send notification</button>
     <button id="btnUsers" class="btn ghost block"
      style="margin-bottom:14px">Users and logins</button>
     <button id="btnBackup" class="btn ghost block"
@@ -74,6 +77,9 @@ export async function showAdmin() {
     const b = $("btnReports");
     if (b && n) b.textContent = "Reports (" + n + " open)";
   }).catch(() => {});
+  $("btnPush").onclick = () => {
+    location.hash = "#/push";
+  };
   $("btnUsers").onclick = () => {
     location.hash = "#/users";
   };
@@ -179,6 +185,11 @@ export async function showForm(id) {
        ${a.published !== false ? "checked" : ""}>
       Visible to users
     </label>
+    ${pushReady() ? `
+    <label class="chk">
+      <input type="checkbox" id="f_notify">
+      Notify users when I save
+    </label>` : ""}
     <p id="f_err" class="err"></p>
     <button id="f_save" class="btn block">Save</button>
     ${id ? `<button id="f_del" class="btn block danger"
@@ -305,6 +316,26 @@ async function toIcon(file) {
   }
 }
 
+/* Builds the message and sends it. Never blocks saving. */
+async function notifyUsers(appId, d, before) {
+  let title = "New app: " + d.name;
+  let body = d.tagline || d.description || "Tap to see it.";
+  if (before) {
+    title = d.name + (d.version && d.version !== before.version
+      ? " updated to v" + d.version : " updated");
+    body = d.whatsNew || d.tagline || "Tap to see what changed.";
+  }
+  try {
+    const r = await pushTo(title, body.slice(0, 120), appId);
+    toast(r.phones
+      ? "Notified " + r.sent + " of " + r.phones + " phones"
+      : "Nobody has notifications on yet");
+  } catch (e) {
+    toast("Saved, but notification failed: " +
+      (e.message || e.code));
+  }
+}
+
 async function save(id) {
   const err = $("f_err");
   err.textContent = "";
@@ -358,6 +389,10 @@ async function save(id) {
     if (id || shotData.length) await saveShots(appId, shotData);
     clearCache();
     toast("Saved");
+    const nb = $("f_notify");
+    if (nb && nb.checked && data.published) {
+      await notifyUsers(appId, data, id ? orig : null);
+    }
     location.hash = "#/admin";
   } catch (e) {
     err.textContent = "Save failed: " + (e.code || e.message);
