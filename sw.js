@@ -1,4 +1,4 @@
-const CACHE = "store-v16";
+const CACHE = "store-v19";
 const SHELL = [
   "./", "./index.html", "./style.css", "./manifest.json",
   "./firebase.js", "./util.js", "./auth.js",
@@ -7,7 +7,7 @@ const SHELL = [
   "./config.js", "./favs.js", "./announce.js",
   "./theme.js", "./reports.js", "./dashboard.js",
   "./restore.js", "./i18n.js", "./shots.js",
-  "./app.js",
+  "./push.js", "./app.js",
   "./icon-192.png", "./icon-512.png"
 ];
 
@@ -44,5 +44,35 @@ self.addEventListener("fetch", (e) => {
         return res;
       })
       .catch(() => caches.match(req))
+  );
+});
+
+/* ---------- Push notifications ---------- */
+self.addEventListener("push", (e) => {
+  let j = {};
+  try { j = e.data ? e.data.json() : {}; } catch (x) { /* */ }
+  const d = j.data || j.notification || j;
+  const title = d.title || "My App Store";
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || "",
+    icon: "./icon-192.png",
+    badge: "./icon-192.png",
+    data: { url: d.url || "./" }
+  }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data || {}).url || "./";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((cs) => {
+      for (const c of cs) {
+        if ("focus" in c) {
+          c.navigate(url).catch(() => {});
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
   );
 });
